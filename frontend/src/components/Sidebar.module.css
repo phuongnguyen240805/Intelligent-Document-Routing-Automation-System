@@ -1,0 +1,139 @@
+.sidebar {
+  width: 220px;
+  min-height: 100vh;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding-bottom: 24px;
+}
+
+/* Logo */
+.logo {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+.logoMark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.logoIcon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+  letter-spacing: -0.5px;
+  flex-shrink: 0;
+}
+.logoText {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+.logoSub {
+  font-size: 10px;
+  color: var(--text3);
+  margin-top: 1px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Nav */
+.navSection {
+  padding: 4px 12px;
+  margin-top: 4px;
+}
+.navLabel {
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 8px 8px 4px;
+  font-weight: 500;
+}
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-bottom: 1px;
+  font-size: 13.5px;
+  background: none;
+  border: none;
+  font-family: 'DM Sans', sans-serif;
+  text-align: left;
+}
+.navItem:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+.navItem.active {
+  background: var(--surface3);
+  color: var(--accent);
+}
+.navIcon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.7;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.navItem.active .navIcon {
+  opacity: 1;
+}
+.navBadge {
+  margin-left: auto;
+  background: #ff5c5c22;
+  color: var(--red);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+/* Footer */
+.footer {
+  margin-top: auto;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f7bff, #7c5fff);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  flex-shrink: 0;
+}
+.userName {
+  font-size: 13px;
+  font-weight: 500;
+}
+.userRole {
+  font-size: 11px;
+  color: var(--text3);
+}

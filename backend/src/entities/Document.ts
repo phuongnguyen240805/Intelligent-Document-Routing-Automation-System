@@ -32,8 +32,12 @@ export class Document {
   reason!: string | null;
 
   // 6. Thời Gian -> processedAt
-  @Column({ name: "processed_at", type: "timestamptz", nullable: true })
-  processedAt!: Date | null;
+  @Column({ 
+    name: "processed_at", 
+    type: "timestamptz", 
+    default: () => "CURRENT_TIMESTAMP" // Postgres tự sinh thời gian
+  })
+  processedAt!: Date;
 
   // 7. Nguồn -> source
   @Column({ name: "source", type: "varchar", length: 100, nullable: true })

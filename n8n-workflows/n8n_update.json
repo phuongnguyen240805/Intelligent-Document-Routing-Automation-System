@@ -950,7 +950,7 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
       "position": [
-        1904,
+        1744,
         -96
       ],
       "credentials": {
@@ -1103,7 +1103,7 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        2160,
+        1984,
         -96
       ],
       "webhookId": "c7e68fc1-9d35-4133-a001-bc0aa5ae2397",
@@ -1209,7 +1209,7 @@
               "display": true,
               "type": "dateTime",
               "canBeUsedToMatch": true,
-              "removed": false
+              "removed": true
             },
             {
               "id": "source",
@@ -1254,7 +1254,155 @@
         224
       ],
       "id": "e43c655d-e623-4177-8e29-04b1d495c4bf",
-      "name": "Insert rows in a table",
+      "name": "insert database",
+      "credentials": {
+        "postgres": {
+          "id": "nmlouXFgCyy9nj0X",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "documents",
+          "mode": "list",
+          "cachedResultName": "documents"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "confidence": "={{ $node[\"Parse & Validate (Schedule)\"].json.confidence }}",
+            "file_name": "={{ $node[\"Parse & Validate (Schedule)\"].json.fileName }}",
+            "file_type": "={{ $node[\"Parse & Validate (Schedule)\"].json.miniType }}",
+            "category": "={{ $node[\"Parse & Validate (Schedule)\"].json.category }}",
+            "reason": "={{ $node[\"Parse & Validate (Schedule)\"].json.reason }}",
+            "source": "={{ $node[\"Parse & Validate (Schedule)\"].json.source }}",
+            "google_drive_id": "={{ $node[\"Parse & Validate (Schedule)\"].json.fileId }}",
+            "status": "Can Review"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "file_name",
+              "displayName": "file_name",
+              "required": true,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "file_type",
+              "displayName": "file_type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confidence",
+              "displayName": "confidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "reason",
+              "displayName": "reason",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "processed_at",
+              "displayName": "processed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "dateTime",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "google_drive_id",
+              "displayName": "google_drive_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2304,
+        -96
+      ],
+      "id": "6859c2a7-5f36-418e-95c8-7e721559a2a8",
+      "name": "Insert database",
       "credentials": {
         "postgres": {
           "id": "nmlouXFgCyy9nj0X",
@@ -1558,7 +1706,7 @@
       "main": [
         [
           {
-            "node": "Insert rows in a table",
+            "node": "insert database",
             "type": "main",
             "index": 0
           }
@@ -1613,19 +1761,25 @@
       "main": [
         [
           {
-            "node": "Loop Over Items (Schedule)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Insert rows in a table",
+            "node": "Insert database",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Insert rows in a table": {
+    "insert database": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items (Schedule)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert database": {
       "main": [
         [
           {
@@ -1642,7 +1796,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "1696383e-342e-4b7e-a8c7-d3765d3ae6a6",
+  "versionId": "8fb5c3c7-13d6-4c1a-8efa-bc8dd941f2eb",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "f4530ff2652b8dcce45824cd31ce1d5803348cedcd40a7ca2c7b13af0f62454c"

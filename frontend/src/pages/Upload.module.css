@@ -252,3 +252,40 @@
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Kết quả từ server ── */
+.resultBox {
+  margin-top: 6px;
+  background: #22c97b10;
+  border: 1px solid #22c97b22;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.resultMsg {
+  font-size: 11.5px;
+  color: var(--green);
+  font-weight: 500;
+}
+.driveLink {
+  font-size: 11.5px;
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: #4f7bff44;
+  text-underline-offset: 2px;
+}
+.driveLink:hover { color: #7fa3ff; }
+.fileIdRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.fileIdLabel { color: var(--text3); }
+.fileIdVal {
+  font-family: 'DM Mono', monospace;
+  color: var(--text2);
+  word-break: break-all;
+}

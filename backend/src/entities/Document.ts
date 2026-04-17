@@ -11,46 +11,39 @@ export class Document {
   @PrimaryGeneratedColumn("uuid")
   id!: string;
 
-  @Column({ type: "varchar", length: 512 })
-  name!: string;
+  // 1. Tên File -> fileName
+  @Column({ name: "file_name", type: "varchar", length: 512 })
+  fileName!: string;
 
-  @Column({ name: "google_drive_id", type: "varchar", length: 256, nullable: true })
-  googleDriveId!: string | null;
+  // 2. Loại File -> fileType
+  @Column({ name: "file_type", type: "varchar", length: 100, nullable: true })
+  fileType!: string | null;
 
-  /**
-   * Kết quả phân loại từ AI (lưu theo raw string để dễ thay đổi taxonomy theo thời gian).
-   * Ví dụ: "Hóa đơn" | "Hợp đồng" | "CV / Resume" | ...
-   */
-  @Column({ type: "varchar", length: 128, nullable: true })
+  // 3. Phân Loại -> category
+  @Column({ name: "category", type: "varchar", length: 100, nullable: true })
   category!: string | null;
 
-  /**
-   * Độ tự tin (0..1). Lưu dạng numeric để không bị mất precision như float.
-   */
-  @Column({ type: "numeric", precision: 4, scale: 3, nullable: true })
-  confidence!: string | null;
+  // 4. Độ Tự Tin -> confidence
+  @Column({ name: "confidence", type: "numeric", precision: 4, scale: 3, nullable: true })
+  confidence!: number | null;
 
-  /** Lý do ngắn gọn do AI trả về. */
-  @Column({ type: "text", nullable: true })
+  // 5. Lý Do -> reason
+  @Column({ name: "reason", type: "text", nullable: true })
   reason!: string | null;
 
-  /** MIME type của file (nếu lấy được từ Drive). */
-  @Column({ name: "mime_type", type: "varchar", length: 255, nullable: true })
-  mimeType!: string | null;
+  // 6. Thời Gian -> processedAt
+  @Column({ name: "processed_at", type: "timestamptz", nullable: true })
+  processedAt!: Date | null;
 
-  /** Nguồn xử lý (vd: n8n_system / manual / api). */
-  @Column({ type: "varchar", length: 64, nullable: true })
+  // 7. Nguồn -> source
+  @Column({ name: "source", type: "varchar", length: 100, nullable: true })
   source!: string | null;
 
-  /** Thời điểm phân loại/ghi nhận (timestamptz). */
-  @Column({ name: "classified_at", type: "timestamptz", nullable: true })
-  classifiedAt!: Date | null;
-  // ****************************
+  // 8. Trạng Thái -> status
+  @Column({ name: "status", type: "varchar", length: 50, default: "pending" })
+  status!: string;
 
-  @Column({
-    type: "varchar",
-    length: 32,
-    default: DocumentStatus.PENDING,
-  })
-  status!: DocumentStatus;
+  // 9. ID File gốc (Dành cho Google Drive ID)
+  @Column({ name: "google_drive_id", type: "varchar", length: 255, nullable: true })
+  googleDriveId!: string | null;
 }

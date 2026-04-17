@@ -1,12 +1,19 @@
 import { useState, useRef, useCallback } from "react";
+import axios from "axios";
 import styles from "./Upload.module.css";
+
+/* ───────────────────────────────────────────
+   ⚙️  CHỈ CẦN SỬA Ở ĐÂY nếu backend đổi URL
+──────────────────────────────────────────── */
+const UPLOAD_URL = "http://localhost:3001/api/upload";
 
 const ACCEPT_TYPES = [".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg", ".gif", ".txt"];
 const MAX_SIZE_MB  = 20;
 
+/* ── Helpers ── */
 function formatSize(bytes) {
-  if (bytes < 1024)         return bytes + " B";
-  if (bytes < 1024 * 1024)  return (bytes / 1024).toFixed(1) + " KB";
+  if (bytes < 1024)        return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
@@ -25,94 +32,114 @@ function getFileIcon(name) {
   return map[ext] || { icon: "📁", color: "#8b90a8" };
 }
 
-/* Simulated upload — replace with real API call from services/api.js */
-function simulateUpload(file, onProgress) {
-  return new Promise((resolve) => {
-    let p = 0;
-    const interval = setInterval(() => {
-      p += Math.random() * 18 + 5;
-      if (p >= 100) {
-        p = 100;
-        clearInterval(interval);
-        setTimeout(() => resolve({ success: true, id: Date.now() }), 300);
-      }
-      onProgress(Math.min(Math.round(p), 100));
-    }, 120);
+/* ── Upload thật bằng axios (giống App.jsx cũ) ── */
+async function realUpload(file, onProgress) {
+  const formData = new FormData();
+  formData.append("file", file);  // field "file" — giữ nguyên như cũ
+
+  const { data } = await axios.post(UPLOAD_URL, formData, {
+    timeout: 120_000,
+    onUploadProgress: (e) => {
+      if (e.total) onProgress(Math.round((e.loaded / e.total) * 100));
+    },
   });
+
+  return data; // { message, originalName, driveLink, fileId, ... }
 }
 
+/* ════════════════════════════════════════════
+   Component chính
+═══════════════════════════════════════════ */
 export default function Upload() {
-  const [files,    setFiles]    = useState([]);   // { file, id, status, progress, error }
+  const [files,    setFiles]    = useState([]); // { id, file, status, progress, error, result }
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef(null);
 
-  /* ── Validation ── */
+  /* Validate trước khi thêm vào queue */
   const validate = (file) => {
     const ext = "." + file.name.split(".").pop().toLowerCase();
-    if (!ACCEPT_TYPES.includes(ext)) return `Loại file không được hỗ trợ (${ext})`;
+    if (!ACCEPT_TYPES.includes(ext)) return `Loại file không hỗ trợ (${ext})`;
     if (file.size > MAX_SIZE_MB * 1024 * 1024) return `File quá lớn (tối đa ${MAX_SIZE_MB} MB)`;
     return null;
   };
 
-  /* ── Add files ── */
+  /* Gọi API thật, cập nhật state từng bước */
+  const startUpload = useCallback((entry) => {
+    // Đánh dấu "đang upload"
+    setFiles((prev) =>
+      prev.map((f) => f.id === entry.id ? { ...f, status: "uploading", progress: 0 } : f)
+    );
+
+    realUpload(entry.file, (progress) => {
+      setFiles((prev) =>
+        prev.map((f) => f.id === entry.id ? { ...f, progress } : f)
+      );
+    })
+      .then((data) => {
+        // Upload thành công — lưu kết quả trả về từ server
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === entry.id
+              ? { ...f, status: "done", progress: 100, result: data }
+              : f
+          )
+        );
+      })
+      .catch((err) => {
+        // Lấy message lỗi giống App.jsx cũ
+        const msg =
+          err.response?.data?.error ??
+          err.message ??
+          "Upload thất bại. Vui lòng thử lại.";
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === entry.id
+              ? { ...f, status: "error", error: typeof msg === "string" ? msg : JSON.stringify(msg) }
+              : f
+          )
+        );
+      });
+  }, []);
+
+  /* Thêm file vào queue và tự động upload */
   const addFiles = useCallback((rawFiles) => {
     const newEntries = Array.from(rawFiles).map((file) => {
       const err = validate(file);
       return {
         id:       crypto.randomUUID(),
         file,
-        status:   err ? "error" : "queued",   // queued | uploading | done | error
+        status:   err ? "error" : "queued",
         progress: 0,
         error:    err || null,
+        result:   null,
       };
     });
     setFiles((prev) => [...prev, ...newEntries]);
 
-    /* Auto-start upload for valid files */
+    // Auto-start các file hợp lệ
     newEntries.forEach((entry) => {
       if (entry.status === "queued") startUpload(entry);
     });
-  }, []);
+  }, [startUpload]);
 
-  /* ── Upload one file ── */
-  const startUpload = (entry) => {
-    setFiles((prev) =>
-      prev.map((f) => f.id === entry.id ? { ...f, status: "uploading" } : f)
-    );
-
-    simulateUpload(entry.file, (progress) => {
-      setFiles((prev) =>
-        prev.map((f) => f.id === entry.id ? { ...f, progress } : f)
-      );
-    }).then(() => {
-      setFiles((prev) =>
-        prev.map((f) => f.id === entry.id ? { ...f, status: "done", progress: 100 } : f)
-      );
-    }).catch(() => {
-      setFiles((prev) =>
-        prev.map((f) => f.id === entry.id ? { ...f, status: "error", error: "Upload thất bại" } : f)
-      );
-    });
-  };
-
-  /* ── Retry ── */
+  /* Retry file lỗi */
   const retry = (id) => {
     const entry = files.find((f) => f.id === id);
     if (!entry) return;
-    setFiles((prev) =>
-      prev.map((f) => f.id === id ? { ...f, status: "queued", progress: 0, error: null } : f)
-    );
-    startUpload({ ...entry, status: "queued" });
+    const reset = { ...entry, status: "queued", progress: 0, error: null, result: null };
+    setFiles((prev) => prev.map((f) => f.id === id ? reset : f));
+    startUpload(reset);
   };
 
-  /* ── Remove ── */
+  /* Xóa 1 file */
   const remove = (id) => setFiles((prev) => prev.filter((f) => f.id !== id));
 
-  /* ── Drag events ── */
+  /* Drag events */
   const onDragOver  = (e) => { e.preventDefault(); setDragging(true); };
   const onDragLeave = (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false); };
   const onDrop      = (e) => { e.preventDefault(); setDragging(false); addFiles(e.dataTransfer.files); };
 
+  /* Summary counts */
   const done      = files.filter((f) => f.status === "done").length;
   const uploading = files.filter((f) => f.status === "uploading").length;
   const errors    = files.filter((f) => f.status === "error").length;
@@ -120,11 +147,14 @@ export default function Upload() {
   return (
     <div className={styles.page}>
 
-      {/* ── Page header ── */}
+      {/* Header */}
       <div className={styles.pageHeader}>
         <div>
           <h2 className={styles.pageTitle}>Upload tài liệu</h2>
-          <p className={styles.pageDesc}>Hỗ trợ PDF, DOCX, XLSX, ảnh và TXT — tối đa {MAX_SIZE_MB} MB mỗi file</p>
+          <p className={styles.pageDesc}>
+            Hỗ trợ PDF, DOCX, XLSX, ảnh và TXT — tối đa {MAX_SIZE_MB} MB — gửi tới{" "}
+            <code style={{ fontSize: 11, color: "var(--accent)" }}>{UPLOAD_URL}</code>
+          </p>
         </div>
       </div>
 
@@ -148,30 +178,23 @@ export default function Upload() {
               style={{ display: "none" }}
               onChange={(e) => addFiles(e.target.files)}
             />
-            <div className={styles.dropIcon}>
-              {dragging ? "📂" : "📁"}
-            </div>
+            <div className={styles.dropIcon}>{dragging ? "📂" : "📁"}</div>
             <div className={styles.dropTitle}>
               {dragging ? "Thả file vào đây" : "Kéo thả file hoặc click để chọn"}
             </div>
-            <div className={styles.dropSub}>
-              {ACCEPT_TYPES.join("  ·  ")}
-            </div>
+            <div className={styles.dropSub}>{ACCEPT_TYPES.join("  ·  ")}</div>
           </div>
 
-          {/* File queue */}
+          {/* Queue */}
           {files.length > 0 && (
             <div className="card">
               <div className="card-header">
                 <span className="card-title">Hàng đợi upload</span>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   {uploading > 0 && <span className={styles.badge} style={{ color: "var(--accent)" }}>⟳ {uploading} đang upload</span>}
-                  {done > 0      && <span className={styles.badge} style={{ color: "var(--green)" }}>✓ {done} xong</span>}
-                  {errors > 0    && <span className={styles.badge} style={{ color: "var(--red)" }}>✕ {errors} lỗi</span>}
-                  <button
-                    className="card-action"
-                    onClick={() => setFiles([])}
-                  >Xóa tất cả</button>
+                  {done > 0      && <span className={styles.badge} style={{ color: "var(--green)"  }}>✓ {done} xong</span>}
+                  {errors > 0    && <span className={styles.badge} style={{ color: "var(--red)"    }}>✕ {errors} lỗi</span>}
+                  <button className="card-action" onClick={() => setFiles([])}>Xóa tất cả</button>
                 </div>
               </div>
 
@@ -189,7 +212,7 @@ export default function Upload() {
                         <div className={styles.fileMeta}>
                           {formatSize(entry.file.size)}
                           {entry.status === "uploading" && ` · ${entry.progress}%`}
-                          {entry.status === "done"      && " · Hoàn tất"}
+                          {entry.status === "done"      && " · Hoàn tất ✓"}
                           {entry.status === "error"     && ` · ${entry.error}`}
                           {entry.status === "queued"    && " · Chờ upload"}
                         </div>
@@ -200,7 +223,7 @@ export default function Upload() {
                             <div
                               className={styles.progressFill}
                               style={{
-                                width: entry.progress + "%",
+                                width:      entry.progress + "%",
                                 background: entry.status === "done" ? "var(--green)" : "var(--accent)",
                               }}
                             />
@@ -211,17 +234,38 @@ export default function Upload() {
                             <div className={styles.progressFill} style={{ width: "100%", background: "var(--red)" }} />
                           </div>
                         )}
+
+                        {/* Kết quả từ server (driveLink, fileId) — giống App.jsx cũ */}
+                        {entry.status === "done" && entry.result && (
+                          <div className={styles.resultBox}>
+                            {entry.result.message && (
+                              <div className={styles.resultMsg}>{entry.result.message}</div>
+                            )}
+                            {entry.result.driveLink && (
+                              <a
+                                href={entry.result.driveLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={styles.driveLink}
+                              >
+                                🔗 Mở trên Google Drive
+                              </a>
+                            )}
+                            {entry.result.fileId && (
+                              <div className={styles.fileIdRow}>
+                                <span className={styles.fileIdLabel}>File ID:</span>
+                                <code className={styles.fileIdVal}>{entry.result.fileId}</code>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      {/* Status icon */}
+                      {/* Action */}
                       <div className={styles.fileStatus}>
-                        {entry.status === "uploading" && (
-                          <div className={styles.spinner} />
-                        )}
-                        {entry.status === "done" && (
-                          <span style={{ color: "var(--green)", fontSize: 16 }}>✓</span>
-                        )}
-                        {entry.status === "error" && (
+                        {entry.status === "uploading" && <div className={styles.spinner} />}
+                        {entry.status === "done"      && <span style={{ color: "var(--green)", fontSize: 16 }}>✓</span>}
+                        {entry.status === "error"     && (
                           <button className={styles.retryBtn} onClick={() => retry(entry.id)}>Thử lại</button>
                         )}
                       </div>
@@ -238,19 +282,19 @@ export default function Upload() {
         {/* ── Right: info panel ── */}
         <div className={styles.rightCol}>
 
-          {/* Accepted types */}
+          {/* Định dạng hỗ trợ */}
           <div className="card">
             <div className="card-header">
               <span className="card-title">Định dạng hỗ trợ</span>
             </div>
             <div className={styles.typeList}>
               {[
-                { ext: "PDF",  icon: "📄", color: "#ff5c5c", note: "OCR tự động" },
-                { ext: "DOCX", icon: "📝", color: "#4f7bff", note: "Đọc text trực tiếp" },
-                { ext: "XLSX", icon: "📊", color: "#22c97b", note: "Trích xuất bảng" },
-                { ext: "JPG / PNG", icon: "🖼", color: "#22d4f0", note: "Gemini Vision OCR" },
-                { ext: "GIF",  icon: "🎞", color: "#f5a623", note: "Nhận diện, không OCR" },
-                { ext: "TXT",  icon: "📃", color: "#8b90a8", note: "Đọc thẳng" },
+                { ext: "PDF",       icon: "📄", color: "#ff5c5c", note: "OCR tự động" },
+                { ext: "DOCX",      icon: "📝", color: "#4f7bff", note: "Đọc text trực tiếp" },
+                { ext: "XLSX",      icon: "📊", color: "#22c97b", note: "Trích xuất bảng" },
+                { ext: "JPG / PNG", icon: "🖼",  color: "#22d4f0", note: "Gemini Vision OCR" },
+                { ext: "GIF",       icon: "🎞",  color: "#f5a623", note: "Nhận diện, không OCR" },
+                { ext: "TXT",       icon: "📃", color: "#8b90a8", note: "Đọc thẳng" },
               ].map((t) => (
                 <div key={t.ext} className={styles.typeItem}>
                   <div className={styles.typeIcon} style={{ background: t.color + "18" }}>{t.icon}</div>
@@ -263,19 +307,19 @@ export default function Upload() {
             </div>
           </div>
 
-          {/* Pipeline preview */}
+          {/* Pipeline */}
           <div className="card">
             <div className="card-header">
               <span className="card-title">Sau khi upload</span>
             </div>
             <div className={styles.pipeline}>
               {[
-                { step: "1", label: "Nhận file",       icon: "📥", color: "var(--accent)" },
-                { step: "2", label: "OCR / Trích xuất",icon: "🔍", color: "var(--cyan)" },
-                { step: "3", label: "AI phân loại",    icon: "🤖", color: "var(--accent2)" },
-                { step: "4", label: "Định tuyến",      icon: "📤", color: "var(--green)" },
+                { label: "Nhận file",        icon: "📥", color: "var(--accent)" },
+                { label: "OCR / Trích xuất", icon: "🔍", color: "var(--cyan)" },
+                { label: "AI phân loại",     icon: "🤖", color: "var(--accent2)" },
+                { label: "Định tuyến Drive", icon: "📤", color: "var(--green)" },
               ].map((s, i, arr) => (
-                <div key={s.step} className={styles.pipeItem}>
+                <div key={s.label} className={styles.pipeItem}>
                   <div className={styles.pipeIcon} style={{ background: s.color + "18", borderColor: s.color + "33" }}>
                     {s.icon}
                   </div>
@@ -286,7 +330,7 @@ export default function Upload() {
             </div>
           </div>
 
-          {/* Stats */}
+          {/* Mini stats */}
           <div className={styles.miniStats}>
             <div className={styles.miniStat}>
               <div className={styles.miniValue}>{done}</div>
@@ -297,7 +341,9 @@ export default function Upload() {
               <div className={styles.miniLabel}>Đang upload</div>
             </div>
             <div className={styles.miniStat}>
-              <div className={styles.miniValue} style={{ color: errors > 0 ? "var(--red)" : undefined }}>{errors}</div>
+              <div className={styles.miniValue} style={{ color: errors > 0 ? "var(--red)" : undefined }}>
+                {errors}
+              </div>
               <div className={styles.miniLabel}>Lỗi</div>
             </div>
           </div>
@@ -306,3 +352,4 @@ export default function Upload() {
     </div>
   );
 }
+

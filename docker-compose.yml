@@ -1,26 +1,119 @@
-version: '3.8'
+# version: '3.8'
+
+# services:
+#   n8n:
+#     # image: docker.n8n.io/n8nio/n8n:latest
+#     image: n8nio/n8n:latest
+#     container_name: idras_n8n
+#     restart: unless-stopped
+#     ports:
+#       - "5678:5678"
+#     environment:
+#       - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
+#       - TZ=Asia/Ho_Chi_Minh
+#       - N8N_HOST=localhost
+#       - N8N_PROTOCOL=http
+#       - WEBHOOK_URL=http://localhost:5678/
+#       - N8N_EDITOR_BASE_URL=http://localhost:5678/
+#       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+#       - N8N_RUNNERS_ENABLED=true
+#     volumes:
+#       # Nơi n8n lưu trữ database và cấu hình (không bị mất khi tắt container)
+#       - n8n_data:/home/node/.n8n
+#       # Map thư mục n8n-workflows ở ngoài máy thật vào trong container
+#       - ./n8n-workflows:/home/node/n8n-workflows
+
+# volumes:
+#   n8n_data:
 
 services:
-  n8n:
-    image: docker.n8n.io/n8nio/n8n:latest
-    container_name: idras_n8n
+  postgres_db:
+    image: postgres:16-alpine
+    container_name: idras_postgres
     restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-idras}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-idras_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-idras}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5678:5678"
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - idras_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-idras} -d ${POSTGRES_DB:-idras}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: idras_backend
+    restart: unless-stopped
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      POSTGRES_HOST: postgres_db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${POSTGRES_USER:-idras}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-idras_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-idras}
+      DATABASE_URL: postgres://${POSTGRES_USER:-idras}:${POSTGRES_PASSWORD:-idras_secret}@postgres_db:5432/${POSTGRES_DB:-idras}
+      PORT: ${PORT:-3001}
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    networks:
+      - idras_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: idras_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
+    ports:
+      - "${FRONTEND_PORT:-5174}:5174"
+    networks:
+      - idras_network
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: idras_n8n_auto
+    restart: unless-stopped
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    ports:
+      - "${N8N_PORT:-5677}:5677"
     environment:
       - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
       - TZ=Asia/Ho_Chi_Minh
-      - N8N_HOST=localhost
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=http://localhost:5678/
-      - N8N_EDITOR_BASE_URL=http://localhost:5678/
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://localhost:5678/}
+      - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL:-http://localhost:5678/}
       - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
       - N8N_RUNNERS_ENABLED=true
+      
     volumes:
-      # Nơi n8n lưu trữ database và cấu hình (không bị mất khi tắt container)
       - n8n_data:/home/node/.n8n
-      # Map thư mục n8n-workflows ở ngoài máy thật vào trong container
       - ./n8n-workflows:/home/node/n8n-workflows
+    networks:
+      - idras_network
 
 volumes:
+  postgres_data:
   n8n_data:
+
+networks:
+  idras_network:
+    driver: bridge

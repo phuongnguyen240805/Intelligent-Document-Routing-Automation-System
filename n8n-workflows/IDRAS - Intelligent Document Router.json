@@ -14,10 +14,10 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.3,
       "position": [
-        -864,
-        112
+        -640,
+        80
       ],
-      "id": "d8af037a-28a2-48e7-836c-6c10f83cfc77",
+      "id": "9b9927e4-6102-4d31-ab0c-4ef548f43c2e",
       "name": "Schedule Trigger"
     },
     {
@@ -35,17 +35,17 @@
         },
         "options": {}
       },
-      "id": "b88700a8-e478-404e-8ef0-b5caaa14b732",
+      "id": "a571c9bd-06b5-4dcf-ad04-531221b2ea4e",
       "name": "Search INBOX (Schedule)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        -624,
-        112
+        -400,
+        80
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "MHZXjmS5iKflda5i",
+          "id": "lXTxS08qfvUwwAnf",
           "name": "Google Drive account"
         }
       }
@@ -54,13 +54,13 @@
       "parameters": {
         "options": {}
       },
-      "id": "73055c59-dc37-4e71-bae7-22d20a73af33",
+      "id": "befc0a8e-4be8-4621-ad9e-e4100cf5049f",
       "name": "Loop Over Items (Schedule)",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        -384,
-        112
+        -160,
+        80
       ]
     },
     {
@@ -170,10 +170,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        96,
-        112
+        320,
+        80
       ],
-      "id": "0705bf1d-7453-49b8-96b9-c326bc051a6c",
+      "id": "e5b18bf8-8991-4bc4-88fa-c9f6c09779be",
       "name": "File Type Switch (Schedule)"
     },
     {
@@ -181,26 +181,26 @@
         "operation": "pdf",
         "options": {}
       },
-      "id": "b24de52d-6aa9-4fb9-aa84-ae2859f82bac",
+      "id": "1982734c-0b1f-461c-ac30-feea62c7d42f",
       "name": "Extract PDF (Schedule)",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
       "position": [
-        336,
-        -96
+        560,
+        -128
       ]
     },
     {
       "parameters": {
         "jsCode": "// Extract text từ DOCX bằng cách đọc XML bên trong (DOCX = ZIP file)\n// Không cần thư viện ngoài - chỉ dùng built-in Buffer\n\nconst item = $input.first();\nconst binaryKey = item.binary ? Object.keys(item.binary)[0] : 'data';\nconst binaryData = item.binary?.[binaryKey];\n\nif (!binaryData) {\n  return [{ json: { ...item.json, text: 'Không có binary data' } }];\n}\n\ntry {\n  // Convert base64 → string, tìm text trong XML của docx\n  const base64 = binaryData.data;\n  const raw = Buffer.from(base64, 'base64').toString('binary');\n  \n  // DOCX là ZIP, tìm phần word/document.xml và extract text giữa các tag XML\n  // Tìm đoạn text giữa <w:t> tags\n  const matches = raw.match(/<w:t[^>]*>([^<]+)<\\/w:t>/g) || [];\n  const text = matches\n    .map(m => m.replace(/<w:t[^>]*>/g, '').replace(/<\\/w:t>/g, ''))\n    .join(' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n  \n  return [{\n    json: {\n      ...item.json,\n      text: text.slice(0, 5000) || ('Tên file: ' + (item.json.name || ''))\n    },\n    binary: item.binary\n  }];\n} catch(err) {\n  return [{\n    json: {\n      ...item.json,\n      text: 'Tên file: ' + (item.json.name || '')\n    },\n    binary: item.binary\n  }];\n}"
       },
-      "id": "f902561f-d2f4-4608-b57e-1560a942f133",
+      "id": "ac172e2c-6b17-401b-a560-169f3d9d5c0c",
       "name": "Extract Text/Office (Schedule)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        336,
-        176
+        560,
+        144
       ]
     },
     {
@@ -211,26 +211,26 @@
           "systemMessage": "Bạn là chuyên gia phân loại tài liệu tiếng Việt.\n\nPhân loại chính xác tài liệu vào đúng 1 trong các category sau:\n- Hóa đơn\n- Hợp đồng\n- CV / Resume\n- Biên nhận / Receipt\n- Báo cáo tài chính\n- Khác\n\nTrả về đúng định dạng JSON:\n{\"category\": \"Hóa đơn\", \"confidence\": 0.92, \"reason\": \"lý do ngắn gọn\"}\n\nQuy tắc bắt buộc:\n- CHỈ trả về JSON thuần túy\n- KHÔNG dùng markdown, KHÔNG dùng ```json hay ```\n- Bắt đầu bằng { và kết thúc bằng }\n- confidence là số thực từ 0.0 đến 1.0"
         }
       },
-      "id": "05d3e3bc-0228-4d9d-b7cd-009c911f316f",
+      "id": "b13a263d-dfe6-4918-a485-79e03e8d9d23",
       "name": "AI Classify (Schedule)",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2.1,
       "position": [
-        592,
-        112
+        816,
+        80
       ]
     },
     {
       "parameters": {
         "jsCode": "// 1. Lấy output từ AI\nconst aiRawOutput = $input.first().json.output || '';\n\n// 2. Parse JSON AI\nlet parsedAI;\ntry {\n  const clean = aiRawOutput.replace(/```json|```/g, '').trim();\n  parsedAI = JSON.parse(clean);\n} catch (e) {\n  parsedAI = { category: 'Khác', confidence: 0.3, reason: 'Lỗi parse' };\n}\n\n// 3. Lấy thông tin FILE từ node \"Download File\"\nlet fileId = '';\nlet fileName = '';\nlet miniType = ''; \n\ntry {\n  // Tìm node Download File\n  const downloadNode = $('Download File').first();\n  \n  if (downloadNode) {\n    fileId = downloadNode.json.id || '';\n    fileName = downloadNode.json.name || '';\n    \n    // CỐ GẮNG LẤY mimeType TỪ NHIỀU NGUỒN KHÁC NHAU\n    // n8n Google Drive node thường để ở json.mimeType hoặc trong binary\n    miniType = downloadNode.json.mimeType || \n               (downloadNode.binary && downloadNode.binary.data ? downloadNode.binary.data.mimeType : '');\n               \n    // Nếu vẫn trống, thử đoán dựa trên đuôi file (Dành cho docx, pdf, xlsx)\n    if (!miniType && fileName.includes('.')) {\n      const ext = fileName.split('.').pop().toLowerCase();\n      const mimeMap = {\n        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',\n        'pdf': 'application/pdf',\n        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',\n        'jpg': 'image/jpeg',\n        'png': 'image/png'\n      };\n      miniType = mimeMap[ext] || 'unknown/' + ext;\n    }\n  }\n} catch (err) {\n  fileId = 'N/A';\n}\n\n// 4. Trả về kết quả\nreturn [{\n  json: {\n    category: parsedAI.category || 'Khác',\n    confidence: parsedAI.confidence || 0,\n    reason: parsedAI.reason || '',\n    fileId: fileId,\n    fileName: fileName,\n    miniType: miniType || 'application/octet-stream', // Nếu không tìm thấy thì để mặc định\n    processedAt: new Date().toLocaleString('vi-VN'),\n    source: 'n8n_system'\n  }\n}];"
       },
-      "id": "9d4873cd-8e21-4345-a935-a28f627682c9",
+      "id": "63585254-a31a-4424-a18b-6ea3d8ce4216",
       "name": "Parse & Validate (Schedule)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        880,
-        112
+        1104,
+        80
       ]
     },
     {
@@ -289,13 +289,13 @@
         },
         "options": {}
       },
-      "id": "564e57ea-2770-4c7b-a0aa-d359c98acaba",
+      "id": "40463a6e-87f8-42fd-8eda-e0f0f89592de",
       "name": "Confidence Check (Schedule)",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        1072,
-        112
+        1296,
+        80
       ]
     },
     {
@@ -317,17 +317,17 @@
           "mode": "url"
         }
       },
-      "id": "00dbd10e-2e66-4deb-a118-6be58b75a782",
+      "id": "1879f002-b96c-4702-888a-a6efd3b14522",
       "name": "Move to REVIEW (Schedule)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        1296,
-        -96
+        1520,
+        -128
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "MHZXjmS5iKflda5i",
+          "id": "lXTxS08qfvUwwAnf",
           "name": "Google Drive account"
         }
       }
@@ -478,13 +478,13 @@
         },
         "options": {}
       },
-      "id": "2f2ea756-9d5c-44a7-8ad4-f377192c1c74",
+      "id": "7735e19a-58bd-418d-ba38-1751e656746a",
       "name": "Document Routing (Schedule)",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        1296,
-        208
+        1520,
+        176
       ]
     },
     {
@@ -506,17 +506,17 @@
           "mode": "url"
         }
       },
-      "id": "15f9c258-218f-49c8-a657-c5692bc618f7",
+      "id": "677b0d67-de73-40e9-9d5f-de5b765335d3",
       "name": "Move Hóa Đơn (S)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        1584,
-        0
+        1808,
+        -32
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "MHZXjmS5iKflda5i",
+          "id": "lXTxS08qfvUwwAnf",
           "name": "Google Drive account"
         }
       }
@@ -540,17 +540,17 @@
           "mode": "url"
         }
       },
-      "id": "4921aef0-c4b9-4049-9277-c8d50a20b6ea",
+      "id": "30378a15-b739-4557-820c-b7962e0e10fb",
       "name": "Move Hợp Đồng (S)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        1584,
-        128
+        1808,
+        96
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "MHZXjmS5iKflda5i",
+          "id": "lXTxS08qfvUwwAnf",
           "name": "Google Drive account"
         }
       }
@@ -574,17 +574,17 @@
           "mode": "url"
         }
       },
-      "id": "f6f7756d-a46f-4cbe-96fe-0c735efd8c8c",
+      "id": "a3509ce8-8648-4a57-b92c-af9745ed9fd1",
       "name": "Move CV (S)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        1584,
-        256
+        1808,
+        224
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "MHZXjmS5iKflda5i",
+          "id": "lXTxS08qfvUwwAnf",
           "name": "Google Drive account"
         }
       }
@@ -608,17 +608,17 @@
           "mode": "url"
         }
       },
-      "id": "a82e795f-26fe-41df-a0cf-3e030b042bc6",
+      "id": "484848c2-3504-452c-bf10-847dd035f742",
       "name": "Move Biên Nhận (S)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        1584,
-        400
+        1808,
+        368
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "MHZXjmS5iKflda5i",
+          "id": "lXTxS08qfvUwwAnf",
           "name": "Google Drive account"
         }
       }
@@ -642,17 +642,17 @@
           "value": "1A16LRYa1RNPBzVsnzUVLFESUFz02FAan"
         }
       },
-      "id": "5253c8f4-8415-44f5-8a36-a3b66a33315d",
+      "id": "bb809a73-71a5-40c9-9d64-0ce71fcbc535",
       "name": "Move Báo Cáo (S)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        1584,
-        544
+        1808,
+        512
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "MHZXjmS5iKflda5i",
+          "id": "lXTxS08qfvUwwAnf",
           "name": "Google Drive account"
         }
       }
@@ -676,17 +676,17 @@
           "mode": "id"
         }
       },
-      "id": "8b3466a7-7f22-40d5-b9b9-fdcc85c5bfdc",
+      "id": "805b3665-03ca-4b08-bcfe-9ad224ecb29d",
       "name": "Move Khác (S)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        1584,
-        672
+        1808,
+        640
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "MHZXjmS5iKflda5i",
+          "id": "lXTxS08qfvUwwAnf",
           "name": "Google Drive account"
         }
       }
@@ -810,17 +810,17 @@
         },
         "options": {}
       },
-      "id": "ce379b2f-7981-43d1-af0e-eccb54c37f49",
+      "id": "308a481b-6d0f-4683-a1c5-1a55117c920f",
       "name": "Log to Sheets (Schedule)",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
       "position": [
-        1936,
-        224
+        2160,
+        192
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "u5rvbXAonwPYUErM",
+          "id": "FX0VPrfHHng5vspe",
           "name": "Google Sheets account"
         }
       }
@@ -945,17 +945,17 @@
         },
         "options": {}
       },
-      "id": "f26da026-f1ab-42d5-912c-d0ca7d8e780f",
+      "id": "005415cf-4a33-42a3-b6b5-616b2ff85886",
       "name": "Log Review to Sheets (Schedule)",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4,
       "position": [
-        1744,
-        -96
+        1968,
+        -128
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
-          "id": "u5rvbXAonwPYUErM",
+          "id": "FX0VPrfHHng5vspe",
           "name": "Google Sheets account"
         }
       }
@@ -965,13 +965,13 @@
         "operation": "text",
         "options": {}
       },
-      "id": "91499673-0a38-45fc-bc68-e866803290a1",
+      "id": "f2376089-d3d4-4b6b-bba4-29e77446bcdf",
       "name": "Extract Text Only (Schedule)",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
       "position": [
-        336,
-        336
+        560,
+        304
       ]
     },
     {
@@ -984,17 +984,17 @@
         },
         "options": {}
       },
-      "id": "9910b721-5b5a-45cd-8663-0788e544e547",
+      "id": "054ffa91-c465-4fac-a669-a94a0dea8f2b",
       "name": "Download File",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
       "position": [
-        -128,
-        112
+        96,
+        80
       ],
       "credentials": {
         "googleDriveOAuth2Api": {
-          "id": "MHZXjmS5iKflda5i",
+          "id": "lXTxS08qfvUwwAnf",
           "name": "Google Drive account"
         }
       }
@@ -1007,14 +1007,14 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
       "typeVersion": 1,
       "position": [
-        592,
-        320
+        816,
+        288
       ],
-      "id": "de75c32a-0d3c-42ed-a7ea-1b9b4faaac3f",
+      "id": "85a3c618-dfc8-48df-8e7f-b74f7002f557",
       "name": "Groq Chat Model",
       "credentials": {
         "groqApi": {
-          "id": "evTS09QZVplWFVYB",
+          "id": "Iszx81t4sImDYXWU",
           "name": "Groq account"
         }
       }
@@ -1023,13 +1023,13 @@
       "parameters": {
         "jsCode": "const item = $input.first();\nconst binaryData = item.binary.data;\n\nreturn [{\n  json: {\n    fileName: item.json.name || \"document.png\",\n    imageBase64: binaryData.data,\n    mimeType: binaryData.mimeType\n  }\n}];"
       },
-      "id": "69387ff0-3c70-48d6-a426-505d475f91db",
+      "id": "8c3d4ba8-f197-43f9-806c-a08c9d54183e",
       "name": "Prepare Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 1,
       "position": [
-        336,
-        32
+        560,
+        0
       ]
     },
     {
@@ -1056,13 +1056,13 @@
         },
         "options": {}
       },
-      "id": "070e2592-49b3-41ce-92f0-e07f41be544b",
+      "id": "618c8960-9fea-47dc-82e0-bc470a8d9229",
       "name": "OCR Space",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
       "position": [
-        544,
-        -80
+        768,
+        -112
       ]
     },
     {
@@ -1076,40 +1076,40 @@
         "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Bạn là chuyên gia phân loại tài liệu IDRAS. Hãy trả về 1 từ duy nhất trong các nhóm: [Hóa đơn, Hợp đồng, CV, Khác].\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Phân loại văn bản này: {{ $json.ParsedResults[0].ParsedText }}\"\n    }\n  ]\n}",
         "options": {}
       },
-      "id": "d26e08e6-8d38-4eef-821c-23bb80b52602",
+      "id": "cc1778e8-197a-4a39-864e-bcf8fb66ed38",
       "name": "Groq Classify",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 3,
       "position": [
-        768,
-        -80
+        992,
+        -112
       ],
       "credentials": {
         "httpHeaderAuth": {
-          "id": "o780gIpLXwRWbnqa",
+          "id": "fPoBwIS2Iz8LWP9T",
           "name": "Header Auth account"
         }
       }
     },
     {
       "parameters": {
-        "sendTo": "phuongnx.23ite@vku.udn.vn",
+        "sendTo": "ydd.23ite@vku.udn.vn",
         "subject": "=⚠️ [IDRAS] Tài liệu cần xem xét thủ công: {{ $node[\"Parse & Validate (Schedule)\"].json.fileName }}",
         "message": "=<div style=\"font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;\">\n  <div style=\"background: #f57c00; padding: 20px 24px;\">\n    <h2 style=\"color: white; margin: 0;\">⚠️ IDRAS – Tài liệu cần xem xét thủ công</h2>\n  </div>\n  <div style=\"padding: 24px;\">\n    <table style=\"width: 100%; border-collapse: collapse;\">\n      <tr style=\"border-bottom: 1px solid #f0f0f0;\">\n        <td style=\"padding: 10px 0; color: #666; width: 160px;\">📄 Tên file</td>\n        <td style=\"padding: 10px 0; font-weight: bold;\">{{ $node[\"Parse & Validate (Schedule)\"].json.fileName }}</td>\n      </tr>\n      <tr style=\"border-bottom: 1px solid #f0f0f0;\">\n        <td style=\"padding: 10px 0; color: #666;\">🏷️ Phân loại đề xuất</td>\n        <td style=\"padding: 10px 0; font-weight: bold;\">{{ $node[\"Parse & Validate (Schedule)\"].json.category }}</td>\n      </tr>\n      <tr style=\"border-bottom: 1px solid #f0f0f0;\">\n        <td style=\"padding: 10px 0; color: #666;\">📊 Độ tự tin</td>\n        <td style=\"padding: 10px 0;\"><span style=\"background: #fff3e0; color: #e65100; padding: 2px 10px; border-radius: 12px; font-weight: bold;\">{{ ($node[\"Parse & Validate (Schedule)\"].json.confidence * 100).toFixed(0) }}% – Thấp</span></td>\n      </tr>\n      <tr style=\"border-bottom: 1px solid #f0f0f0;\">\n        <td style=\"padding: 10px 0; color: #666;\">💬 Lý do</td>\n        <td style=\"padding: 10px 0;\">{{ $node[\"Parse & Validate (Schedule)\"].json.reason }}</td>\n      </tr>\n      <tr style=\"border-bottom: 1px solid #f0f0f0;\">\n        <td style=\"padding: 10px 0; color: #666;\">🕐 Thời gian xử lý</td>\n        <td style=\"padding: 10px 0;\">{{ $node[\"Parse & Validate (Schedule)\"].json.processedAt }}</td>\n      </tr>\n      <tr>\n        <td style=\"padding: 10px 0; color: #666;\">📡 Nguồn</td>\n        <td style=\"padding: 10px 0;\">{{ $node[\"Parse & Validate (Schedule)\"].json.source }}</td>\n      </tr>\n    </table>\n    <div style=\"margin-top: 20px; padding: 14px; background: #fff8e1; border-left: 4px solid #f57c00; border-radius: 4px;\">\n      👉 File đã được chuyển tự động vào thư mục <strong>REVIEW</strong> trên Google Drive. Vui lòng kiểm tra và phân loại lại thủ công.\n    </div>\n  </div>\n  <div style=\"background: #f5f5f5; padding: 12px 24px; text-align: center; color: #999; font-size: 12px;\">\n    IDRAS – Intelligent Document Routing Automation System\n  </div>\n</div>",
         "options": {}
       },
-      "id": "ed68f3ac-e323-467a-9d1a-0acea8c691d3",
+      "id": "430768fa-8fe4-437f-af8c-2d1971b9c13f",
       "name": "Notify Gmail (Schedule)2",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        1984,
-        -96
+        2208,
+        -128
       ],
       "webhookId": "c7e68fc1-9d35-4133-a001-bc0aa5ae2397",
       "credentials": {
         "gmailOAuth2": {
-          "id": "SZk5T4mp3LOy7E8g",
+          "id": "XALBSvKIdEyysvlT",
           "name": "Gmail account"
         }
       }
@@ -1250,14 +1250,14 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        2224,
-        224
+        2448,
+        192
       ],
-      "id": "e43c655d-e623-4177-8e29-04b1d495c4bf",
+      "id": "a28ae3f3-eb1c-4123-b531-592485bd028e",
       "name": "insert database",
       "credentials": {
         "postgres": {
-          "id": "nmlouXFgCyy9nj0X",
+          "id": "WuxL7Qr8PWbVWVQ1",
           "name": "Postgres account"
         }
       }
@@ -1398,14 +1398,14 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        2304,
-        -96
+        2528,
+        -128
       ],
-      "id": "6859c2a7-5f36-418e-95c8-7e721559a2a8",
+      "id": "8c9bb332-cf8a-4bce-8c5c-e980cdb8f23a",
       "name": "Insert database",
       "credentials": {
         "postgres": {
-          "id": "nmlouXFgCyy9nj0X",
+          "id": "WuxL7Qr8PWbVWVQ1",
           "name": "Postgres account"
         }
       }
@@ -1791,16 +1791,16 @@
       ]
     }
   },
-  "active": true,
+  "active": false,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "8fb5c3c7-13d6-4c1a-8efa-bc8dd941f2eb",
+  "versionId": "140491e5-4059-40e9-99ea-a56f57f37297",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "f4530ff2652b8dcce45824cd31ce1d5803348cedcd40a7ca2c7b13af0f62454c"
+    "instanceId": "9a1b3784355e117d80a6da67d53560736544074713ac83c1c58bcf6d64f2d2d7"
   },
-  "id": "FT0UAK3dL0JjJNVe",
+  "id": "XeLLUo11htVCjEo2",
   "tags": []
 }

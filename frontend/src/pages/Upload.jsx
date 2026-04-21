@@ -5,7 +5,7 @@ import styles from "./Upload.module.css";
 /* ───────────────────────────────────────────
    ⚙️  CHỈ CẦN SỬA Ở ĐÂY nếu backend đổi URL
 ──────────────────────────────────────────── */
-const UPLOAD_URL = "http://localhost:3001/api/upload";
+const UPLOAD_URL = "http://localhost:3002/api/upload";
 
 const ACCEPT_TYPES = [".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg", ".gif", ".txt"];
 const MAX_SIZE_MB  = 20;

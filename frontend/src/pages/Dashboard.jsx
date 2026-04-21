@@ -1,109 +1,128 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import StatCard from "../components/StatCard";
+import { getAllDocuments } from "../services/api";
 import styles from "./Dashboard.module.css";
 
-/* ── Static data ── */
-const RECENT_DOCS = [
-  { name: "Invoice_2024_001.pdf",    category: "invoice",   catLabel: "Hóa đơn",       route: "Kế toán",    time: "2 phút trước",  status: "routed" },
-  { name: "Contract_NDA_Acme.docx",  category: "contract",  catLabel: "Hợp đồng",       route: "Pháp lý",    time: "5 phút trước",  status: "routed" },
-  { name: "Resume_JohnDoe.pdf",      category: "hr",        catLabel: "HR",             route: "Nhân sự",    time: "8 phút trước",  status: "pending" },
-  { name: "PO_2024_0891.pdf",        category: "po",        catLabel: "Purchase Order", route: "Mua hàng",   time: "12 phút trước", status: "routed" },
-  { name: "Report_Q4_Summary.xlsx",  category: "report",    catLabel: "Báo cáo",        route: "Vận hành",   time: "18 phút trước", status: "routed" },
-  { name: "HopDong_ThangLong.pdf",   category: "contract",  catLabel: "Hợp đồng",       route: "Pháp lý",    time: "25 phút trước", status: "review" },
-];
+const CAT_COLORS = {
+  "Hóa đơn":       { color: "var(--accent)",  cls: "invoice" },
+  "Hợp đồng":      { color: "var(--cyan)",     cls: "contract" },
+  "Purchase Order": { color: "var(--green)",   cls: "po" },
+  "HR":             { color: "var(--accent2)", cls: "hr" },
+  "Báo cáo":        { color: "var(--amber)",   cls: "report" },
+};
 
-const CATEGORIES = [
-  { name: "Hóa đơn",       count: 42, pct: 85, color: "var(--accent)" },
-  { name: "Hợp đồng",      count: 28, pct: 57, color: "var(--cyan)" },
-  { name: "Purchase Order", count: 19, pct: 38, color: "var(--green)" },
-  { name: "HR",            count: 15, pct: 30, color: "var(--accent2)" },
-  { name: "Báo cáo",       count: 14, pct: 28, color: "var(--amber)" },
-  { name: "Khác",          count:  6, pct: 12, color: "var(--text3)" },
-];
-
-const ACTIVITIES = [
-  { color: "var(--green)", text: <><strong>OCR hoàn tất</strong> — Invoice_001.pdf</>,        time: "vừa xong" },
-  { color: "var(--accent)", text: <>AI phân loại <strong>12 tài liệu</strong></>,             time: "3 phút trước" },
-  { color: "var(--amber)", text: <><strong>Resume_JohnDoe</strong> cần duyệt thủ công</>,    time: "8 phút trước" },
-  { color: "var(--cyan)",  text: <>Batch <strong>PO tháng 12</strong> đã route</>,           time: "14 phút trước" },
-];
-
-const WEEK_DAYS    = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-const WEEK_TOTALS  = [80, 110, 95, 140, 125, 160, 124];
-const WEEK_DONE    = [70,  98, 90, 132, 118, 152, 118];
+const STATUS_DOT   = { success: "dot-green", pending: "dot-amber", failed: "dot-red", uploaded: "dot-green" };
+const STATUS_LABEL = { success: "Thành công", pending: "Chờ xử lý", failed: "Thất bại", uploaded: "Đã upload" };
 
 const PIPELINE = [
-  { icon: "📥", name: "Schedule Trigger", meta: "Chạy mỗi 15 phút",    status: "routed",  label: "Active",  labelColor: "var(--green)" },
-  { icon: "🔍", name: "OCR Engine",       meta: "Gemini Vision",        status: "routed",  label: "Ready",   labelColor: "var(--green)" },
-  { icon: "🤖", name: "AI Classify",      meta: "Groq / Llama 3.3",    status: "pending", label: "Running", labelColor: "var(--amber)" },
-  { icon: "📤", name: "Google Drive",     meta: "Auto-route folders",   status: "routed",  label: "Synced",  labelColor: "var(--green)" },
+  { icon: "📥", name: "Schedule Trigger", meta: "Chạy mỗi 15 phút",    statusKey: "routed",  label: "Active",  labelColor: "var(--green)" },
+  { icon: "🔍", name: "OCR Engine",       meta: "Gemini Vision",        statusKey: "routed",  label: "Ready",   labelColor: "var(--green)" },
+  { icon: "🤖", name: "AI Classify",      meta: "Groq / Llama 3.3",    statusKey: "pending", label: "Running", labelColor: "var(--amber)" },
+  { icon: "📤", name: "Google Drive",     meta: "Auto-route folders",   statusKey: "routed",  label: "Synced",  labelColor: "var(--green)" },
 ];
 
-/* ── Status helpers ── */
-const STATUS_DOT   = { routed: "dot-green", pending: "dot-amber", review: "dot-red" };
-const STATUS_LABEL = { routed: "Đã xử lý", pending: "Chờ duyệt", review: "Cần xem lại" };
+function formatTimeAgo(iso) {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1)  return "vừa xong";
+  if (mins < 60) return `${mins} phút trước`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs} giờ trước`;
+  return `${Math.floor(hrs / 24)} ngày trước`;
+}
 
 export default function Dashboard() {
-  const barsRef = useRef(null);
+  const [docs,    setDocs]    = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  /* Animate bars & category fills after mount */
+  useEffect(() => {
+    getAllDocuments()
+      .then((data) => { setDocs(Array.isArray(data) ? data : []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  /* Derived stats từ data thật */
+  const total    = docs.length;
+  const success  = docs.filter(d => d.status === "success" || d.status === "uploaded").length;
+  const pending  = docs.filter(d => d.status === "pending").length;
+
+  /* Categories count */
+  const catCounts = docs.reduce((acc, d) => {
+    const cat = d.category || "Khác";
+    acc[cat] = (acc[cat] || 0) + 1;
+    return acc;
+  }, {});
+  const catList = Object.entries(catCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6);
+  const maxCat = catList[0]?.[1] || 1;
+
+  /* Recent 6 */
+  const recent = docs.slice(0, 6);
+
+  /* Animate bars */
   useEffect(() => {
     const t = setTimeout(() => {
-      /* category bars */
-      document.querySelectorAll("[data-bar-pct]").forEach((el) => {
+      document.querySelectorAll("[data-bar-pct]").forEach(el => {
         el.style.width = el.dataset.barPct + "%";
-      });
-      /* volume chart */
-      document.querySelectorAll("[data-bar-h]").forEach((el) => {
-        el.style.height = el.dataset.barH + "px";
       });
     }, 400);
     return () => clearTimeout(t);
-  }, []);
-
-  const maxV = Math.max(...WEEK_TOTALS);
+  }, [catList]);
 
   return (
     <div className={styles.page}>
 
-      {/* ── Stats ── */}
+      {/* Stats */}
       <div className={styles.statsGrid}>
-        <StatCard label="Hôm nay"      value={124} sub="↑ 12% so với hôm qua"  subType="up"   icon="📄" color="blue" />
-        <StatCard label="Đã phân loại" value={118} sub="95.2% độ chính xác"    subType="up"   icon="✓"  color="green" />
-        <StatCard label="Chờ duyệt"    value={6}   sub="↑ 2 cần xem lại"       subType="down" icon="⏳" color="amber" />
-        <StatCard label="Danh mục"     value={12}  sub="loại tài liệu"                         icon="🗂" color="cyan" />
+        <StatCard label="Tổng tài liệu"   value={total}   sub={loading ? "Đang tải..." : "trong hệ thống"}          icon="📄" color="blue" />
+        <StatCard label="Đã xử lý thành công" value={success} sub={total ? Math.round(success/total*100)+"% tỉ lệ" : "—"} icon="✓" color="green" />
+        <StatCard label="Chờ xử lý"       value={pending} sub="cần xem lại"                                          icon="⏳" color="amber" />
+        <StatCard label="Danh mục"        value={catList.length} sub="loại tài liệu"                                 icon="🗂" color="cyan" />
       </div>
 
-      {/* ── Content grid ── */}
+      {/* Content grid */}
       <div className={styles.contentGrid}>
 
-        {/* Recent docs table */}
+        {/* Recent docs */}
         <div className="card">
           <div className="card-header">
             <span className="card-title">Tài liệu gần đây</span>
-            <button className="card-action">Xem tất cả →</button>
+            {loading && <span style={{ fontSize: 12, color: "var(--text3)" }}>Đang tải...</span>}
           </div>
           <table className={styles.table}>
             <thead>
-              <tr>
-                <th>Tài liệu</th><th>Danh mục</th><th>Định tuyến</th><th>Thời gian</th><th>Trạng thái</th>
-              </tr>
+              <tr><th>Tên file</th><th>Danh mục</th><th>Tin cậy</th><th>Thời gian</th><th>Trạng thái</th></tr>
             </thead>
             <tbody>
-              {RECENT_DOCS.map((doc) => (
-                <tr key={doc.name}>
-                  <td className={styles.docName}>{doc.name}</td>
-                  <td><span className={`badge badge-${doc.category}`}>{doc.catLabel}</span></td>
-                  <td className={styles.muted}>{doc.route}</td>
-                  <td className={styles.muted}>{doc.time}</td>
-                  <td>
-                    <span className="status-dot">
-                      <span className={`dot ${STATUS_DOT[doc.status]}`} />
-                      {STATUS_LABEL[doc.status]}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {recent.length === 0 && !loading ? (
+                <tr><td colSpan={5} style={{ textAlign: "center", padding: 32, color: "var(--text3)" }}>
+                  {loading ? "Đang tải..." : "Chưa có dữ liệu"}
+                </td></tr>
+              ) : recent.map((doc) => {
+                const cat = CAT_COLORS[doc.category];
+                const cls = cat ? cat.cls : "other";
+                const label = doc.category || "Khác";
+                const conf = doc.confidence ? Math.round(Number(doc.confidence) * 100) + "%" : "—";
+                const confColor = doc.confidence
+                  ? (Number(doc.confidence) >= 0.8 ? "var(--green)" : Number(doc.confidence) >= 0.6 ? "var(--amber)" : "var(--red)")
+                  : "var(--text3)";
+                return (
+                  <tr key={doc.id}>
+                    <td className={styles.docName}>{doc.fileName}</td>
+                    <td><span className={`badge badge-${cls}`}>{label}</span></td>
+                    <td><span style={{ fontSize: 12, fontWeight: 600, color: confColor, fontFamily: "'DM Mono',monospace" }}>{conf}</span></td>
+                    <td className={styles.muted}>{formatTimeAgo(doc.processedAt)}</td>
+                    <td>
+                      <span className="status-dot">
+                        <span className={`dot ${STATUS_DOT[doc.status] || "dot-amber"}`} />
+                        {STATUS_LABEL[doc.status] || doc.status || "—"}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -111,93 +130,84 @@ export default function Dashboard() {
         {/* Right panel */}
         <div className={styles.rightPanel}>
 
-          {/* Categories */}
+          {/* Categories từ data thật */}
           <div className="card">
-            <div className="card-header">
-              <span className="card-title">Theo danh mục</span>
-            </div>
+            <div className="card-header"><span className="card-title">Theo danh mục</span></div>
             <div className={styles.catList}>
-              {CATEGORIES.map((c) => (
-                <div key={c.name} className={styles.catItem}>
-                  <div className={styles.catRow}>
-                    <span className={styles.catName}>{c.name}</span>
-                    <span className={styles.catCount}>{c.count}</span>
-                  </div>
-                  <div className={styles.barTrack}>
-                    <div
-                      className={styles.barFill}
-                      style={{ background: c.color, width: 0 }}
-                      data-bar-pct={c.pct}
-                    />
-                  </div>
+              {catList.length === 0 ? (
+                <div style={{ padding: "16px", color: "var(--text3)", fontSize: 13 }}>
+                  {loading ? "Đang tải..." : "Chưa có dữ liệu"}
                 </div>
-              ))}
+              ) : catList.map(([cat, count]) => {
+                const style = CAT_COLORS[cat];
+                const color = style ? style.color : "var(--text3)";
+                const pct   = Math.round((count / maxCat) * 100);
+                return (
+                  <div key={cat} className={styles.catItem}>
+                    <div className={styles.catRow}>
+                      <span className={styles.catName}>{cat}</span>
+                      <span className={styles.catCount}>{count}</span>
+                    </div>
+                    <div className={styles.barTrack}>
+                      <div className={styles.barFill} style={{ background: color, width: 0 }} data-bar-pct={pct} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Activity */}
+          {/* Activity feed */}
           <div className="card">
-            <div className="card-header">
-              <span className="card-title">Hoạt động</span>
-            </div>
+            <div className="card-header"><span className="card-title">Hoạt động</span></div>
             <div className={styles.actList}>
-              {ACTIVITIES.map((a, i) => (
-                <div key={i} className={styles.actItem}>
-                  <div className={styles.actDot} style={{ background: a.color }} />
-                  <div>
-                    <div className={styles.actText}>{a.text}</div>
-                    <div className={styles.actTime}>{a.time}</div>
+              {docs.slice(0, 5).map((doc) => {
+                const isOk = doc.status === "success" || doc.status === "uploaded";
+                return (
+                  <div key={doc.id} className={styles.actItem}>
+                    <div className={styles.actDot} style={{ background: isOk ? "var(--green)" : doc.status === "pending" ? "var(--amber)" : "var(--red)" }} />
+                    <div>
+                      <div className={styles.actText}>
+                        <strong>{doc.category || "Khác"}</strong> — {doc.fileName}
+                      </div>
+                      <div className={styles.actTime}>{formatTimeAgo(doc.processedAt)}</div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
+              {docs.length === 0 && !loading && (
+                <div style={{ padding: "12px 16px", color: "var(--text3)", fontSize: 13 }}>Chưa có hoạt động</div>
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Bottom grid ── */}
+      {/* Bottom */}
       <div className={styles.bottomGrid}>
 
-        {/* Volume chart */}
+        {/* Summary */}
         <div className="card">
-          <div className="card-header">
-            <span className="card-title">Khối lượng 7 ngày qua</span>
-            <div className={styles.legend}>
-              <span><span className={styles.legendDot} style={{ background: "var(--accent)" }} />Đã xử lý</span>
-              <span><span className={styles.legendDot} style={{ background: "var(--surface3)" }} />Tổng</span>
-            </div>
-          </div>
-          <div className={styles.chartWrap} ref={barsRef}>
-            {WEEK_DAYS.map((d, i) => {
-              const hTotal = Math.round((WEEK_TOTALS[i] / maxV) * 80);
-              const hDone  = Math.round((WEEK_DONE[i]   / maxV) * 80);
-              return (
-                <div key={d} className={styles.barCol}>
-                  <div className={styles.barStack}>
-                    <div
-                      className={styles.barSeg}
-                      style={{ background: "var(--surface3)", height: 0 }}
-                      data-bar-h={hTotal}
-                    />
-                    <div
-                      className={styles.barSeg}
-                      style={{ background: "var(--accent)", opacity: 0.85, height: 0 }}
-                      data-bar-h={hDone}
-                    />
-                  </div>
-                  <div className={styles.barDay}>{d}</div>
-                </div>
-              );
-            })}
+          <div className="card-header"><span className="card-title">Tóm tắt hệ thống</span></div>
+          <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+            {[
+              { label: "Tổng đã nhận",      val: total,                                      color: "var(--accent)" },
+              { label: "Xử lý thành công",   val: success,                                    color: "var(--green)" },
+              { label: "Đang chờ",           val: pending,                                    color: "var(--amber)" },
+              { label: "Thất bại",           val: docs.filter(d => d.status === "failed").length, color: "var(--red)" },
+              { label: "Nguồn n8n_system",   val: docs.filter(d => d.source === "n8n_system").length, color: "var(--cyan)" },
+            ].map(({ label, val, color }) => (
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: "1px solid var(--border)" }}>
+                <span style={{ fontSize: 13, color: "var(--text2)" }}>{label}</span>
+                <span style={{ fontSize: 14, fontWeight: 600, color, fontFamily: "'DM Mono',monospace" }}>{val}</span>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Pipeline status */}
         <div className="card">
-          <div className="card-header">
-            <span className="card-title">Đang xử lý</span>
-            <button className="card-action">Xem log</button>
-          </div>
+          <div className="card-header"><span className="card-title">Pipeline</span></div>
           <div className={styles.procList}>
             {PIPELINE.map((p) => (
               <div key={p.name} className={styles.procItem}>
@@ -207,14 +217,13 @@ export default function Dashboard() {
                   <div className={styles.procMeta}>{p.meta}</div>
                 </div>
                 <div className={styles.procStatus}>
-                  <span className={`dot ${STATUS_DOT[p.status]}`} />
+                  <span className={`dot ${p.statusKey === "routed" ? "dot-green" : "dot-amber"}`} />
                   <span style={{ color: p.labelColor }}>{p.label}</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
-
       </div>
     </div>
   );

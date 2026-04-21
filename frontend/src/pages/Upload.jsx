@@ -5,7 +5,7 @@ import styles from "./Upload.module.css";
 /* ───────────────────────────────────────────
    ⚙️  CHỈ CẦN SỬA Ở ĐÂY nếu backend đổi URL
 ──────────────────────────────────────────── */
-const UPLOAD_URL = "http://localhost:3001/api/upload";
+const UPLOAD_URL = "http://localhost:3002/api/upload";
 
 const ACCEPT_TYPES = [".pdf", ".docx", ".xlsx", ".png", ".jpg", ".jpeg", ".gif", ".txt"];
 const MAX_SIZE_MB  = 20;
@@ -38,6 +38,9 @@ async function realUpload(file, onProgress) {
   formData.append("file", file);  // field "file" — giữ nguyên như cũ
 
   const { data } = await axios.post(UPLOAD_URL, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
     timeout: 120_000,
     onUploadProgress: (e) => {
       if (e.total) onProgress(Math.round((e.loaded / e.total) * 100));

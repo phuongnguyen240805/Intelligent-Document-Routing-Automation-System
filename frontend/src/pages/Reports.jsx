@@ -1,76 +1,30 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
+import { getAllDocuments } from "../services/api";
 import styles from "./Reports.module.css";
 
-const WEEKLY = [
-  { day:"T2", total:80,  done:70  },
-  { day:"T3", total:110, done:98  },
-  { day:"T4", total:95,  done:90  },
-  { day:"T5", total:140, done:132 },
-  { day:"T6", total:125, done:118 },
-  { day:"T7", total:160, done:152 },
-  { day:"CN", total:124, done:118 },
-];
+const CAT_COLOR = {
+  "Hóa đơn":     "var(--accent)",
+  "Hợp đồng":    "var(--cyan)",
+  "CV / Resume": "var(--accent2)",
+  "Biên nhận":   "var(--red)",
+  "Báo cáo":     "var(--amber)",
+  "Khác":        "var(--text3)",
+};
 
-const MONTHLY = [
-  { month:"Th7",  docs:1820, acc:91 },
-  { month:"Th8",  docs:2100, acc:92 },
-  { month:"Th9",  docs:1950, acc:90 },
-  { month:"Th10", docs:2380, acc:93 },
-  { month:"Th11", docs:2650, acc:94 },
-  { month:"Th12", docs:2840, acc:95 },
-];
-
-const CATEGORIES = [
-  { label:"Hóa đơn",       value:42, pct:34, color:"var(--accent)" },
-  { label:"Hợp đồng",      value:28, pct:23, color:"var(--cyan)" },
-  { label:"Purchase Order", value:19, pct:15, color:"var(--green)" },
-  { label:"HR",             value:15, pct:12, color:"var(--accent2)" },
-  { label:"Báo cáo",        value:14, pct:11, color:"var(--amber)" },
-  { label:"Khác",           value:6,  pct:5,  color:"var(--text3)" },
-];
-
-const TOP_ROUTES = [
-  { route:"Kế toán",    count:284, pct:92, trend:"+8%" },
-  { route:"Pháp lý",    count:196, pct:78, trend:"+3%" },
-  { route:"Mua hàng",   count:142, pct:96, trend:"+12%" },
-  { route:"Nhân sự",    count:98,  pct:85, trend:"+1%" },
-  { route:"Vận hành",   count:86,  pct:88, trend:"+5%" },
-];
-
-const SUMMARY = [
-  { label:"Tổng tháng này",  value:"2,840",  sub:"↑ 7.2% vs tháng trước", color:"var(--accent)" },
-  { label:"Độ chính xác",    value:"95.2%",  sub:"↑ 1.1pp vs tháng trước", color:"var(--green)" },
-  { label:"Thời gian xử lý", value:"1.4s",   sub:"↓ 0.2s cải thiện",       color:"var(--cyan)" },
-  { label:"Cần review",      value:"2.8%",   sub:"↓ 0.5pp vs tháng trước", color:"var(--amber)" },
-];
-
-function BarChart({ data, maxKey, valueKey, labelKey, color1, color2 }) {
-  const max = Math.max(...data.map(d => d[maxKey]));
-  return (
-    <div className={styles.barChart}>
-      {data.map((d, i) => (
-        <div key={i} className={styles.barGroup}>
-          <div className={styles.barStack}>
-            <div
-              className={styles.barBg}
-              style={{ height: Math.round((d[maxKey] / max) * 100) + "%" }}
-            />
-            <div
-              className={styles.barFg}
-              style={{
-                height: Math.round((d[valueKey] / max) * 100) + "%",
-                background: color1,
-              }}
-            />
-          </div>
-          <div className={styles.barLabel}>{d[labelKey]}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
+const fmtDate = iso => iso ? new Date(iso).toLocaleDateString("vi-VN") : "—";
 
 export default function Reports() {
+  const [docs,    setDocs]    = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = () => {
+    setLoading(true);
+    getAllDocuments()
+      .then(d => { setDocs(Array.isArray(d)?d:[]); setLoading(false); })
+      .catch(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, []);
+
   useEffect(() => {
     const t = setTimeout(() => {
       document.querySelectorAll("[data-bar-pct]").forEach(el => {
@@ -78,176 +32,199 @@ export default function Reports() {
       });
     }, 300);
     return () => clearTimeout(t);
-  }, []);
+  }, [docs]);
+
+  const total   = docs.length;
+  const success = docs.filter(d=>d.status==="success"||d.status==="uploaded").length;
+  const failed  = docs.filter(d=>d.status==="failed").length;
+  const review  = docs.filter(d=>d.confidence&&Number(d.confidence)<0.70).length;
+  const avgConf = docs.filter(d=>d.confidence).length > 0
+    ? Math.round(docs.filter(d=>d.confidence).reduce((a,d)=>a+Number(d.confidence),0)/docs.filter(d=>d.confidence).length*100)
+    : 0;
+
+  const catCounts = docs.reduce((acc,d)=>{ const c=d.category||"Khác"; acc[c]=(acc[c]||0)+1; return acc; },{});
+  const catList   = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]);
+  const maxCat    = catList[0]?.[1]||1;
+
+  /* 7 ngày */
+  const byDay = {};
+  for (let i=6;i>=0;i--) {
+    const d=new Date(); d.setDate(d.getDate()-i);
+    const key=d.toLocaleDateString("vi-VN");
+    byDay[key]={total:0,success:0,label:["CN","T2","T3","T4","T5","T6","T7"][d.getDay()]};
+  }
+  docs.forEach(d=>{
+    const key=new Date(d.processedAt).toLocaleDateString("vi-VN");
+    if(byDay[key]){byDay[key].total++;if(d.status==="success"||d.status==="uploaded")byDay[key].success++;}
+  });
+  const dayData = Object.values(byDay);
+  const maxDay  = Math.max(...dayData.map(d=>d.total),1);
+
+  const SUMMARY = [
+    {label:"Tổng tài liệu",   value:loading?"...":String(total),   color:"var(--accent)",  sub:"trong database"},
+    {label:"Thành công",       value:loading?"...":String(success), color:"var(--green)",   sub:total?Math.round(success/total*100)+"%":"0%"},
+    {label:"Độ chính xác TB",  value:loading?"...":avgConf+"%",     color:"var(--cyan)",    sub:"confidence AI"},
+    {label:"Cần review",       value:loading?"...":String(review),  color:"var(--red)",     sub:"confidence < 70%"},
+  ];
 
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
         <div>
           <h2 className={styles.pageTitle}>Reports</h2>
-          <p className={styles.pageDesc}>Phân tích hiệu suất hệ thống · Tháng 12/2024</p>
+          <p className={styles.pageDesc}>Phân tích dữ liệu thật từ PostgreSQL · {total} tài liệu</p>
         </div>
-        <div style={{display:"flex",gap:8}}>
-          <select className={styles.periodSelect}>
-            <option>Tháng này</option>
-            <option>7 ngày</option>
-            <option>Quý này</option>
-            <option>Năm nay</option>
-          </select>
-          <button className="btn btn-primary">Xuất báo cáo</button>
-        </div>
+        <button className="btn" onClick={load}>⟳ Refresh</button>
       </div>
 
-      {/* Summary cards */}
       <div className={styles.summaryGrid}>
-        {SUMMARY.map((s) => (
+        {SUMMARY.map(s=>(
           <div key={s.label} className={styles.summaryCard}>
             <div className={styles.summaryLabel}>{s.label}</div>
-            <div className={styles.summaryValue} style={{ color: s.color }}>{s.value}</div>
+            <div className={styles.summaryValue} style={{color:s.color}}>{s.value}</div>
             <div className={styles.summarySub}>{s.sub}</div>
           </div>
         ))}
       </div>
 
-      {/* Charts row */}
-      <div className={styles.chartsRow}>
-        {/* Weekly volume */}
-        <div className="card" style={{flex:1}}>
-          <div className="card-header">
-            <span className="card-title">Khối lượng tuần này</span>
-            <div style={{display:"flex",gap:12,fontSize:12,color:"var(--text3)"}}>
-              <span><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:"var(--accent)",marginRight:4}}/>Xử lý</span>
-              <span><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:"var(--surface3)",marginRight:4}}/>Tổng</span>
-            </div>
-          </div>
-          <div className={styles.chartWrap}>
-            <BarChart
-              data={WEEKLY}
-              maxKey="total"
-              valueKey="done"
-              labelKey="day"
-              color1="var(--accent)"
-            />
-          </div>
+      {loading ? (
+        <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"center",padding:40,color:"var(--text3)"}}>
+          <div className={styles.spinner}/> Đang tải dữ liệu...
         </div>
-
-        {/* Monthly trend */}
-        <div className="card" style={{flex:1}}>
-          <div className="card-header">
-            <span className="card-title">Xu hướng 6 tháng</span>
-          </div>
-          <div className={styles.chartWrap}>
-            <BarChart
-              data={MONTHLY}
-              maxKey="docs"
-              valueKey="docs"
-              labelKey="month"
-              color1="var(--cyan)"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom row */}
-      <div className={styles.bottomRow}>
-        {/* Categories breakdown */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Phân bổ danh mục</span>
-            <span style={{fontSize:12,color:"var(--text3)"}}>Tổng 124 hôm nay</span>
-          </div>
-          <div className={styles.catBreakdown}>
-            {/* Donut chart (CSS) */}
-            <div className={styles.donut}>
-              <div className={styles.donutInner}>
-                <div className={styles.donutValue}>124</div>
-                <div className={styles.donutLabel}>docs</div>
+      ) : (
+        <>
+          <div className={styles.chartsRow}>
+            {/* 7 ngày */}
+            <div className="card" style={{flex:1}}>
+              <div className="card-header">
+                <span className="card-title">Khối lượng 7 ngày qua</span>
+                <div style={{display:"flex",gap:12,fontSize:12,color:"var(--text3)"}}>
+                  <span><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:"var(--accent)",marginRight:4}}/>Thành công</span>
+                  <span><span style={{display:"inline-block",width:8,height:8,borderRadius:2,background:"var(--surface3)",marginRight:4}}/>Tổng</span>
+                </div>
               </div>
-            </div>
-            {/* Legend */}
-            <div className={styles.catLegend}>
-              {CATEGORIES.map((c) => (
-                <div key={c.label} className={styles.catLegendItem}>
-                  <div className={styles.catLegendBar}>
-                    <div className={styles.catLegendLeft}>
-                      <span className={styles.catLegendDot} style={{background:c.color}} />
-                      <span className={styles.catLegendLabel}>{c.label}</span>
+              <div className={styles.chartWrap}>
+                <div className={styles.barChart}>
+                  {dayData.map((d,i)=>(
+                    <div key={i} className={styles.barGroup}>
+                      <div className={styles.barStack}>
+                        <div className={styles.barBg} style={{height:Math.round(d.total/maxDay*100)+"%"}}/>
+                        <div className={styles.barFg} style={{height:Math.round(d.success/maxDay*100)+"%",background:"var(--accent)"}}/>
+                      </div>
+                      <div className={styles.barLabel}>{d.label}</div>
                     </div>
-                    <div className={styles.catLegendRight}>
-                      <span className={styles.catLegendCount}>{c.value}</span>
-                      <span className={styles.catLegendPct}>{c.pct}%</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Confidence */}
+            <div className="card" style={{flex:1}}>
+              <div className="card-header"><span className="card-title">Phân bổ độ tin cậy</span></div>
+              <div className={styles.chartWrap} style={{paddingTop:20}}>
+                {[
+                  {label:"≥ 90%",   count:docs.filter(d=>d.confidence&&Number(d.confidence)>=0.9).length,  color:"var(--green)"},
+                  {label:"70–90%",  count:docs.filter(d=>d.confidence&&Number(d.confidence)>=0.7&&Number(d.confidence)<0.9).length, color:"var(--amber)"},
+                  {label:"< 70%",   count:docs.filter(d=>d.confidence&&Number(d.confidence)<0.7).length,   color:"var(--red)"},
+                  {label:"Không rõ",count:docs.filter(d=>!d.confidence).length,                            color:"var(--text3)"},
+                ].map(row=>(
+                  <div key={row.label} style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+                    <div style={{fontSize:12,color:"var(--text2)",width:64,flexShrink:0}}>{row.label}</div>
+                    <div style={{flex:1,height:6,background:"var(--surface3)",borderRadius:3,overflow:"hidden"}}>
+                      <div data-bar-pct={total?Math.round(row.count/total*100):0}
+                        style={{height:"100%",borderRadius:3,background:row.color,width:0,transition:"width 1s cubic-bezier(.22,.68,0,1.2)"}}/>
+                    </div>
+                    <div style={{fontSize:12,color:row.color,fontFamily:"'DM Mono',monospace",width:36,textAlign:"right"}}>{row.count}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.bottomRow}>
+            {/* Categories */}
+            <div className="card">
+              <div className="card-header"><span className="card-title">Phân bổ danh mục</span><span style={{fontSize:12,color:"var(--text3)"}}>Tổng {total}</span></div>
+              <div className={styles.catBreakdown}>
+                <div className={styles.donut}>
+                  <div className={styles.donutInner}>
+                    <div className={styles.donutValue}>{total}</div>
+                    <div className={styles.donutLabel}>docs</div>
+                  </div>
+                </div>
+                <div className={styles.catLegend}>
+                  {catList.slice(0,6).map(([cat,count])=>(
+                    <div key={cat} className={styles.catLegendItem}>
+                      <div className={styles.catLegendBar}>
+                        <div className={styles.catLegendLeft}>
+                          <span className={styles.catLegendDot} style={{background:CAT_COLOR[cat]||"var(--text3)"}}/>
+                          <span className={styles.catLegendLabel}>{cat}</span>
+                        </div>
+                        <div className={styles.catLegendRight}>
+                          <span className={styles.catLegendCount}>{count}</span>
+                          <span className={styles.catLegendPct}>{Math.round(count/total*100)}%</span>
+                        </div>
+                      </div>
+                      <div className={styles.catTrack}>
+                        <div className={styles.catFill} data-bar-pct={Math.round(count/maxCat*100)}
+                          style={{background:CAT_COLOR[cat]||"var(--text3)",width:0}}/>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Tài liệu gần nhất */}
+            <div className="card">
+              <div className="card-header"><span className="card-title">Mới nhất</span></div>
+              {docs.slice(0,8).map(doc=>{
+                const conf = doc.confidence?Math.round(Number(doc.confidence)*100):null;
+                const color = conf?(conf>=80?"var(--green)":conf>=60?"var(--amber)":"var(--red)"):"var(--text3)";
+                return (
+                  <div key={doc.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 16px",borderBottom:"1px solid var(--border)"}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:12,fontWeight:500,color:"var(--text)",fontFamily:"'DM Mono',monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{doc.fileName}</div>
+                      <div style={{fontSize:11,color:"var(--text3)",marginTop:2}}>{doc.category||"Khác"} · {fmtDate(doc.processedAt)}</div>
+                    </div>
+                    {doc.googleDriveId&&(
+                      <a href={`https://drive.google.com/file/d/${doc.googleDriveId}/view`} target="_blank" rel="noreferrer"
+                        style={{color:"var(--accent)",fontSize:12,flexShrink:0}}>🔗</a>
+                    )}
+                    <div style={{fontSize:12,fontWeight:600,color,fontFamily:"'DM Mono',monospace",flexShrink:0}}>{conf?conf+"%":"—"}</div>
+                  </div>
+                );
+              })}
+              {docs.length===0&&<div style={{padding:"16px 20px",color:"var(--text3)",fontSize:13}}>Chưa có dữ liệu</div>}
+            </div>
+
+            {/* Status breakdown */}
+            <div className="card">
+              <div className="card-header"><span className="card-title">Trạng thái</span></div>
+              <div style={{padding:"16px 20px",display:"flex",flexDirection:"column",gap:10}}>
+                {[
+                  {label:"Thành công",   count:success, color:"var(--green)"},
+                  {label:"Chờ xử lý",    count:docs.filter(d=>d.status==="pending").length,   color:"var(--amber)"},
+                  {label:"Thất bại",     count:failed,  color:"var(--red)"},
+                  {label:"Review (<70%)",count:review,  color:"var(--red)"},
+                  {label:"n8n_system",   count:docs.filter(d=>d.source==="n8n_system").length, color:"var(--cyan)"},
+                ].map(({label,count,color})=>(
+                  <div key={label}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4,fontSize:12}}>
+                      <span style={{color:"var(--text2)"}}>{label}</span>
+                      <span style={{color,fontFamily:"'DM Mono',monospace",fontWeight:600}}>{count}</span>
+                    </div>
+                    <div style={{height:4,background:"var(--surface3)",borderRadius:2,overflow:"hidden"}}>
+                      <div data-bar-pct={total?Math.round(count/total*100):0}
+                        style={{height:"100%",borderRadius:2,background:color,width:0,transition:"width 1s cubic-bezier(.22,.68,0,1.2)"}}/>
                     </div>
                   </div>
-                  <div className={styles.catTrack}>
-                    <div
-                      className={styles.catFill}
-                      data-bar-pct={c.pct}
-                      style={{ background: c.color, width: 0 }}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Top routes */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Top routes</span>
-            <span style={{fontSize:12,color:"var(--text3)"}}>Tháng này</span>
-          </div>
-          <div className={styles.routeList}>
-            {TOP_ROUTES.map((r, i) => (
-              <div key={r.route} className={styles.routeItem}>
-                <div className={styles.routeRank}>#{i+1}</div>
-                <div className={styles.routeInfo}>
-                  <div className={styles.routeRow}>
-                    <span className={styles.routeName}>{r.route}</span>
-                    <span className={styles.routeTrend} style={{color:"var(--green)"}}>{r.trend}</span>
-                  </div>
-                  <div className={styles.routeMeta}>
-                    <span>{r.count} files</span>
-                    <span>· {r.pct}% thành công</span>
-                  </div>
-                  <div className={styles.routeTrack}>
-                    <div
-                      className={styles.routeFill}
-                      data-bar-pct={r.pct}
-                      style={{ background: "var(--accent)", width: 0 }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Accuracy trend */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Độ chính xác AI</span>
-          </div>
-          <div className={styles.accList}>
-            {MONTHLY.map((m) => (
-              <div key={m.month} className={styles.accItem}>
-                <div className={styles.accMonth}>{m.month}</div>
-                <div className={styles.accTrack}>
-                  <div
-                    className={styles.accFill}
-                    data-bar-pct={m.acc}
-                    style={{ background: "var(--green)", width: 0 }}
-                  />
-                </div>
-                <div className={styles.accVal} style={{color:"var(--green)"}}>{m.acc}%</div>
-              </div>
-            ))}
-            <div className={styles.accNote}>
-              Mô hình: Groq / Llama 3.3-70B · Ngưỡng duyệt: 70%
-            </div>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

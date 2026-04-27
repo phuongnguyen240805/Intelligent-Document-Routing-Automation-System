@@ -1,13 +1,18 @@
 /**
- * services/api.js
- * Tất cả hàm gọi API backend Express (port 3002)
- * Matching thật với Document.ts và File.ts entity
+ * services/api.js — port 3002
+ *
+ * Routes thật (file.routes.ts):
+ *   POST /api/upload        → uploadFile
+ *   GET  /api/files         → getAllFiles → trả Document[]
+ *   GET  /api/files/search  → searchFiles
+ *   GET  /api/files/:id     → getFileById → trả FileEntity
  */
 
-const BASE = "http://localhost:3002/api";
+export const BASE_URL   = "http://localhost:3002/api";
+export const UPLOAD_URL = `${BASE_URL}/upload`;
 
 async function request(path, options = {}) {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${BASE_URL}${path}`, {
     headers: { "Content-Type": "application/json", ...options.headers },
     ...options,
   });
@@ -18,38 +23,14 @@ async function request(path, options = {}) {
   return res.json();
 }
 
-/* ─────────────────────────────────────────────
-   FILES — bảng `files` (FileEntity)
-   Upload đã dùng axios trực tiếp trong Upload.jsx
-───────────────────────────────────────────── */
+// GET /api/files → Document[] (bảng documents, data sau n8n)
+export const getAllDocuments = () => request("/files");
 
-/** GET /api/files — lấy tất cả files (bảng files) */
-export const getAllUploadedFiles = () => request("/files");
-
-/** GET /api/files/:id */
+// GET /api/files/:id → FileEntity
 export const getFileById = (id) => request(`/files/${id}`);
 
-/** GET /api/files/search?name=...&originalName=...&fileId=... */
+// GET /api/files/search?name=...
 export const searchFiles = (params = {}) => {
   const q = new URLSearchParams(params).toString();
   return request(`/files/search?${q}`);
 };
-
-/* ─────────────────────────────────────────────
-   DOCUMENTS — bảng `documents` (Document entity)
-   Đây là data sau khi n8n xử lý OCR + phân loại
-   Trả về: { id, fileName, fileType, category, confidence,
-             reason, processedAt, source, status, googleDriveId }
-───────────────────────────────────────────── */
-
-/** GET /api/files — trong file_controller getAllFiles() dùng Document repo */
-export const getAllDocuments = () => request("/files");
-
-/** GET /api/files/:id — getFileById dùng FileEntity repo */
-export const getDocument = (id) => request(`/files/${id}`);
-
-/* ─────────────────────────────────────────────
-   UPLOAD — dùng axios trực tiếp trong Upload.jsx
-   POST /api/upload  (port 3002)
-───────────────────────────────────────────── */
-export const UPLOAD_URL = "http://localhost:3002/api/upload";

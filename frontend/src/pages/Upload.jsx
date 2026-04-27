@@ -19,7 +19,10 @@ const FILE_ICON = n => {
 async function doUpload(file, onProgress) {
   const fd = new FormData();
   fd.append("file", file);
-  const { data } = await axios.post(UPLOAD_URL, fd, {
+  const { data } = await axios.post(UPLOAD_URL, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
     timeout: 120_000,
     onUploadProgress: e => { if(e.total) onProgress(Math.round(e.loaded/e.total*100)); },
   });

@@ -4,6 +4,7 @@ import {
   getAllFiles,
   getFileById,
   searchFiles,
+  updateDocumentStatus,
   uploadFile,
 } from "../controllers/file.controller";
 import { upload } from "../middlewares/upload.middleware";
@@ -15,4 +16,5 @@ fileRouter.post("/upload", upload.single("file"), uploadFile);
 fileRouter.get("/files", getAllFiles);
 fileRouter.get("/files/search", searchFiles);
 fileRouter.get("/files/:id", getFileById);
+fileRouter.patch("/files/:id", updateDocumentStatus);
 

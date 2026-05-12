@@ -22,6 +22,44 @@ function uploadErrorStatus(message: string): number {
   return 500;
 }
 
+// ═══════════════════════════════════════════════════════
+// BƯỚC 1: Thêm function này vào file:
+//   backend/src/controllers/file.controller.ts
+// ═══════════════════════════════════════════════════════
+
+export async function updateDocumentStatus(req: Request, res: Response): Promise<any> {
+  const { id } = req.params;
+  const { status, category } = req.body;
+
+  if (!status) {
+    return res.status(400).json({ error: "Thiếu field: status" });
+  }
+
+  const repo = AppDataSource.getRepository(Document);
+  const doc  = await repo.findOne({ where: { id } });
+
+  if (!doc) {
+    return res.status(404).json({ error: "Không tìm thấy document" });
+  }
+
+  doc.status = status;
+  if (category) doc.category = category;
+
+  await repo.save(doc);
+  return res.status(200).json(doc);
+}
+
+// ═══════════════════════════════════════════════════════
+// BƯỚC 2: Thêm vào file:
+//   backend/src/routes/file.routes.ts
+//
+// Import thêm:
+//   import { ..., updateDocumentStatus } from "../controllers/file.controller";
+//
+// Thêm route:
+//   fileRouter.patch("/files/:id", updateDocumentStatus);
+// ═══════════════════════════════════════════════════════
+
 export async function uploadFile(req: Request, res: Response): Promise<any> {
   if (!req.file) {
     return res.status(400).json({ error: "No file uploaded. Use form field name: file" });

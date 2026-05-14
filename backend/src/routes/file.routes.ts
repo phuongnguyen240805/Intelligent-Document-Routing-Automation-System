@@ -17,4 +17,3 @@ fileRouter.get("/files", getAllFiles);
 fileRouter.get("/files/search", searchFiles);
 fileRouter.get("/files/:id", getFileById);
 fileRouter.patch("/files/:id", updateDocumentStatus);
-

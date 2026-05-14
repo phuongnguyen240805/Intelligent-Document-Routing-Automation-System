@@ -10,7 +10,7 @@ const NAV_MAIN = [
 const NAV_PROCESSING = [
   { id: "classification", label: "Classification", icon: <ListIcon /> },
   { id: "routing",        label: "Routing",        icon: <ChartIcon /> },
-  { id: "pending",        label: "Pending",        icon: <TimeIcon />, badge: 6 },
+  { id: "pending",        label: "Pending",        icon: <TimeIcon /> },
 ];
 
 const NAV_REPORTS = [

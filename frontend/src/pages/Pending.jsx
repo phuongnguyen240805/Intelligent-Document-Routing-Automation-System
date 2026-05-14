@@ -11,36 +11,37 @@ const ALL_CATS = [
   { value:"Khác",        label:"Khác",         bg:"#ffffff10", text:"#8b90a8" },
 ];
 const CAT_MAP = Object.fromEntries(ALL_CATS.map(c => [c.value, c]));
-const getCat  = c => CAT_MAP[c] || { label: c || "Khác", bg:"#ffffff10", text:"#8b90a8" };
+const getCat  = c => CAT_MAP[c] || { label:c||"Khác", bg:"#ffffff10", text:"#8b90a8" };
+
+const DONE_STATUSES = ["approved","rejected","success","uploaded","failed"];
 
 const fmtDate = iso => {
   if (!iso) return "—";
   const d = new Date(iso);
-  return d.toLocaleDateString("vi-VN") + " " + d.toLocaleTimeString("vi-VN", { hour:"2-digit", minute:"2-digit" });
+  return d.toLocaleDateString("vi-VN")+" "+d.toLocaleTimeString("vi-VN",{hour:"2-digit",minute:"2-digit"});
 };
 
 function ConfBadge({ value }) {
-  if (!value) return <span style={{ color:"var(--text3)", fontSize:12 }}>—</span>;
-  const p = Math.round(Number(value) * 100);
-  const c = p >= 80 ? "var(--green)" : p >= 60 ? "var(--amber)" : "var(--red)";
-  return <span style={{ color:c, fontSize:12, fontWeight:600, fontFamily:"'DM Mono',monospace" }}>{p}%</span>;
+  if (!value) return <span style={{color:"var(--text3)",fontSize:12}}>—</span>;
+  const p = Math.round(Number(value)*100);
+  const c = p>=80?"var(--green)":p>=60?"var(--amber)":"var(--red)";
+  return <span style={{color:c,fontSize:12,fontWeight:600,fontFamily:"'DM Mono',monospace"}}>{p}%</span>;
 }
 
-/* Gọi PATCH /api/files/:id — cập nhật status + category thật trên backend */
 async function patchDocument(id, status, category) {
   const res = await fetch(`${BASE_URL}/files/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status, category }),
+    method:"PATCH",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({status, category}),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err.error||`HTTP ${res.status}`);
   }
   return res.json();
 }
 
-export default function Pending() {
+export default function Pending({ onResolved }) {
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState(null);
   const [items,      setItems]      = useState([]);
@@ -50,24 +51,15 @@ export default function Pending() {
   const [resolved,   setResolved]   = useState([]);
 
   const load = useCallback(() => {
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     getAllDocuments()
       .then(data => {
         const arr = Array.isArray(data) ? data : [];
-        /* Các status đã xử lý xong — KHÔNG hiện lại dù confidence thấp */
-        const DONE_STATUSES = ["approved", "rejected", "success", "uploaded", "failed"];
-
         const pending = arr.filter(d => {
-          /* Bỏ qua nếu đã được duyệt/từ chối/xử lý xong */
+          /* Bỏ qua nếu đã xử lý xong */
           if (DONE_STATUSES.includes(d.status)) return false;
-
-          /* Hiện nếu đang chờ xử lý */
           if (d.status === "pending") return true;
-
-          /* Hiện nếu confidence thấp (sẽ vào thư mục REVIEW trong Drive) */
           if (d.confidence !== null && d.confidence !== undefined && Number(d.confidence) < 0.70) return true;
-
           return false;
         });
         setItems(pending);
@@ -80,38 +72,38 @@ export default function Pending() {
 
   const selectedItem = items.find(i => i.id === selected);
 
-  /* Duyệt — gọi API thật, xóa khỏi list sau khi thành công */
   const approve = async (id) => {
     const item = items.find(i => i.id === id);
     if (!item || processing[id]) return;
     const finalCat = overrides[id] || item.category;
-    setProcessing(p => ({ ...p, [id]: true }));
+    setProcessing(p => ({...p,[id]:true}));
     try {
       await patchDocument(id, "approved", finalCat);
-      setResolved(p => [...p, { ...item, action:"approved", finalCat }]);
+      setResolved(p => [...p, {...item, action:"approved", finalCat}]);
       setItems(p => p.filter(i => i.id !== id));
       if (selected === id) setSelected(null);
-    } catch (e) {
+      onResolved?.(); /* Cập nhật badge count ở Sidebar */
+    } catch(e) {
       setError(`Duyệt thất bại: ${e.message}`);
     } finally {
-      setProcessing(p => { const n = {...p}; delete n[id]; return n; });
+      setProcessing(p => { const n={...p}; delete n[id]; return n; });
     }
   };
 
-  /* Từ chối — gọi API thật */
   const reject = async (id) => {
     const item = items.find(i => i.id === id);
     if (!item || processing[id]) return;
-    setProcessing(p => ({ ...p, [id]: true }));
+    setProcessing(p => ({...p,[id]:true}));
     try {
       await patchDocument(id, "rejected", item.category);
-      setResolved(p => [...p, { ...item, action:"rejected" }]);
+      setResolved(p => [...p, {...item, action:"rejected"}]);
       setItems(p => p.filter(i => i.id !== id));
       if (selected === id) setSelected(null);
-    } catch (e) {
+      onResolved?.();
+    } catch(e) {
       setError(`Từ chối thất bại: ${e.message}`);
     } finally {
-      setProcessing(p => { const n = {...p}; delete n[id]; return n; });
+      setProcessing(p => { const n={...p}; delete n[id]; return n; });
     }
   };
 
@@ -125,16 +117,16 @@ export default function Pending() {
           <p className={styles.pageDesc}>
             {loading
               ? "Đang tải..."
-              : `${items.length} tài liệu cần xem lại${resolved.length > 0 ? ` · ${resolved.length} đã xử lý` : ""}`
+              : `${items.length} tài liệu cần xem lại${resolved.length>0?` · ${resolved.length} đã xử lý`:""}`
             }
           </p>
         </div>
-        <div style={{ display:"flex", gap:8 }}>
+        <div style={{display:"flex",gap:8}}>
           <button className="btn" onClick={load}>⟳ Refresh</button>
           {!loading && items.length > 0 && (
             <>
-              <button className="btn" onClick={() => items.forEach(i => reject(i.id))}>✕ Từ chối tất cả</button>
-              <button className="btn btn-primary" onClick={() => items.forEach(i => approve(i.id))}>✓ Duyệt tất cả</button>
+              <button className="btn" onClick={()=>items.forEach(i=>reject(i.id))}>✕ Từ chối tất cả</button>
+              <button className="btn btn-primary" onClick={()=>items.forEach(i=>approve(i.id))}>✓ Duyệt tất cả</button>
             </>
           )}
         </div>
@@ -143,39 +135,32 @@ export default function Pending() {
       {error && (
         <div className={styles.errorBox}>
           ⚠ {error}
-          <button className={styles.retryBtn} onClick={() => { setError(null); load(); }}>Thử lại</button>
+          <button className={styles.retryBtn} onClick={()=>{setError(null);load();}}>Thử lại</button>
         </div>
       )}
 
       {loading ? (
-        <div className={styles.loadingBox}><div className={styles.spinner} /> Đang tải từ backend...</div>
-
+        <div className={styles.loadingBox}><div className={styles.spinner}/> Đang tải từ backend...</div>
       ) : items.length === 0 ? (
         <div className={styles.emptyState}>
           <div className={styles.emptyIcon}>✅</div>
           <div className={styles.emptyTitle}>Không có gì cần duyệt</div>
-          <div className={styles.emptyDesc}>
-            {resolved.length > 0 ? `${resolved.length} tài liệu đã xử lý trong phiên này` : "Tất cả tài liệu đều ổn"}
-          </div>
-          <button className="btn" style={{ marginTop:16 }} onClick={load}>⟳ Tải lại</button>
+          <div className={styles.emptyDesc}>{resolved.length>0?`${resolved.length} tài liệu đã xử lý`:"Tất cả tài liệu đều ổn"}</div>
+          <button className="btn" style={{marginTop:16}} onClick={load}>⟳ Tải lại</button>
         </div>
-
       ) : (
         <div className={styles.layout}>
-          {/* List */}
           <div className={styles.listCol}>
             {items.map(item => {
-              const cat    = getCat(overrides[item.id] || item.category);
+              const cat    = getCat(overrides[item.id]||item.category);
               const isProc = !!processing[item.id];
               return (
-                <div
-                  key={item.id}
+                <div key={item.id}
                   className={`${styles.itemCard} ${selected===item.id?styles.itemCardActive:""} ${isProc?styles.itemCardProcessing:""}`}
-                  onClick={() => !isProc && setSelected(selected===item.id?null:item.id)}
-                >
+                  onClick={()=>!isProc&&setSelected(selected===item.id?null:item.id)}>
                   <div className={styles.itemTop}>
                     <div className={styles.itemName}>{item.fileName}</div>
-                    {isProc ? <div className={styles.spinner}/> : <ConfBadge value={item.confidence}/>}
+                    {isProc?<div className={styles.spinner}/>:<ConfBadge value={item.confidence}/>}
                   </div>
                   <div className={styles.itemMeta}>
                     <span className="badge" style={{background:cat.bg,color:cat.text}}>{cat.label}</span>
@@ -196,7 +181,6 @@ export default function Pending() {
             })}
           </div>
 
-          {/* Detail */}
           <div className={styles.detailCol}>
             {selectedItem ? (
               <div className="card">
@@ -240,12 +224,10 @@ export default function Pending() {
                       className="btn" style={{textDecoration:"none",textAlign:"center"}}>🔗 Mở Google Drive</a>
                   )}
                   <div className={styles.detailButtons}>
-                    <button className={styles.rejectBtnLg} disabled={!!processing[selectedItem.id]}
-                      onClick={()=>reject(selectedItem.id)}>
+                    <button className={styles.rejectBtnLg} disabled={!!processing[selectedItem.id]} onClick={()=>reject(selectedItem.id)}>
                       {processing[selectedItem.id]?"Đang xử lý...":"✕ Từ chối"}
                     </button>
-                    <button className={styles.approveBtnLg} disabled={!!processing[selectedItem.id]}
-                      onClick={()=>approve(selectedItem.id)}>
+                    <button className={styles.approveBtnLg} disabled={!!processing[selectedItem.id]} onClick={()=>approve(selectedItem.id)}>
                       {processing[selectedItem.id]?"Đang xử lý...":"✓ Duyệt"}
                     </button>
                   </div>
@@ -257,7 +239,7 @@ export default function Pending() {
 
             {resolved.length>0&&(
               <div className="card" style={{marginTop:16}}>
-                <div className="card-header"><span className="card-title">Đã xử lý phiên này ({resolved.length})</span></div>
+                <div className="card-header"><span className="card-title">Đã xử lý ({resolved.length})</span></div>
                 {resolved.slice(-6).reverse().map((r,i)=>(
                   <div key={i} className={styles.resolvedItem}>
                     <span className={`dot ${r.action==="approved"?"dot-green":"dot-red"}`}/>
